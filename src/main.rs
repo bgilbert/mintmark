@@ -1,79 +1,172 @@
-use std::io::{self, Write};
+mod render;
 
-use qrcode::{EcLevel, QrCode};
+use pulldown_cmark::{Event, Options, Parser, Tag};
+use std::io::{self, Read};
 
-const LINE_PIXELS: u16 = 200;
-
-fn send(buf: &[u8]) -> Result<(), io::Error> {
-    io::stdout().write_all(buf)
-}
-
-fn print_qr(contents: &[u8]) -> Result<(), io::Error> {
-    // Build code
-    let code =
-        QrCode::with_error_correction_level(contents, EcLevel::L).expect("Building QR code failed");
-    let image_str = code
-        .render()
-        .max_dimensions(LINE_PIXELS as u32, LINE_PIXELS as u32)
-        .dark_color('#')
-        .light_color(' ')
-        .build();
-    let mut image: Vec<Vec<bool>> = Vec::with_capacity(LINE_PIXELS as usize);
-    for line in image_str.split("\n") {
-        let mut line_vec: Vec<bool> = Vec::with_capacity(LINE_PIXELS as usize);
-        let pad_size = (LINE_PIXELS as usize - line.len()) / 2;
-        for _ in 0..pad_size {
-            line_vec.push(false);
-        }
-        for item in line.chars() {
-            line_vec.push(item == '#');
-        }
-        image.push(line_vec);
-    }
-    let width = image[0].len();
-    let height = image.len();
-
-    // Enable unidirectional print mode for better alignment
-    send(b"\x1bU\x01")?;
-    // Set line spacing to avoid gaps
-    send(b"\x1b3\x0e")?;
-
-    // Write code
-    for yblock in 0..height / 8 {
-        let width_bytes = &(width as u16).to_le_bytes();
-        // Bit image mode 0, vert 72 dpi, horz 80 dpi, width 200 dots
-        let mut line: Vec<u8> = vec![0x1b, b'*', 0, width_bytes[0], width_bytes[1]];
-        for x in 0..width {
-            let mut byte: u8 = 0;
-            for y in yblock * 8..yblock * 8 + 7 {
-                byte <<= 1;
-                byte |= image[y][x] as u8;
-            }
-            line.push(byte);
-        }
-        send(&line)?;
-        send(b"\r")?;
-        send(&line)?;
-        send(b"\n")?;
-    }
-
-    // Restore bidirectional print mode
-    send(b"\x1bU\x00")?;
-    // Restore line spacing
-    send(b"\x1b2")?;
-
-    Ok(())
-}
+use render::{Justification, RenderFlags, Renderer};
 
 fn main() -> Result<(), io::Error> {
-    // Reset printer
-    send(b"\x1b@")?;
+    let mut input: Vec<u8> = Vec::new();
+    io::stdin().lock().read_to_end(&mut input)?;
 
-    // Print QR code
-    print_qr(b"THIS CERTIFICATE GOOD FOR ONE AWESOME")?;
+    let mut options = Options::empty();
+    options.insert(Options::ENABLE_STRIKETHROUGH);
+    let parser = Parser::new_ext(std::str::from_utf8(&input).expect("bad utf-8"), options);
 
-    // Advance paper and cut
-    send(b"\x1dV\x42\x68")?;
+    let mut renderer = Renderer::new()?;
+    let mut in_qr_code: u32 = 0;
+    for (event, _) in parser.into_offset_iter() {
+        match event {
+            Event::Start(tag) => {
+                match tag {
+                    Tag::Paragraph => {}
+                    Tag::Heading(size) => {
+                        // Center first.  This only takes effect at the
+                        // start of the line, so end tag handling needs to
+                        // specially account for it.
+                        renderer.set_justification(Justification::Center)?;
+                        match size {
+                            1 => {
+                                renderer.set_unidirectional(true)?.set_flags(
+                                    RenderFlags::DOUBLE_HEIGHT
+                                        | RenderFlags::DOUBLE_WIDTH
+                                        | RenderFlags::EMPHASIZED
+                                        | RenderFlags::UNDERLINE,
+                                )?;
+                            }
+                            2 => {
+                                renderer.set_unidirectional(true)?.set_flags(
+                                    RenderFlags::DOUBLE_HEIGHT
+                                        | RenderFlags::DOUBLE_WIDTH
+                                        | RenderFlags::EMPHASIZED,
+                                )?;
+                            }
+                            3 => {
+                                renderer
+                                    .set_flags(RenderFlags::EMPHASIZED | RenderFlags::UNDERLINE)?
+                                    .clear_flags(RenderFlags::NARROW)?;
+                            }
+                            4 => {
+                                renderer
+                                    .set_flags(RenderFlags::EMPHASIZED)?
+                                    .clear_flags(RenderFlags::NARROW)?;
+                            }
+                            5 => {
+                                renderer
+                                    .set_flags(RenderFlags::EMPHASIZED | RenderFlags::UNDERLINE)?;
+                            }
+                            _ => {
+                                renderer.set_flags(RenderFlags::EMPHASIZED)?;
+                            }
+                        }
+                    }
+                    Tag::BlockQuote => {}
+                    Tag::CodeBlock(format) => match format.into_string().as_str() {
+                        "qr" => {
+                            in_qr_code += 1;
+                        }
+                        _ => {
+                            renderer.set_red(true)?;
+                        }
+                    },
+                    Tag::List(_first_item_number) => {}
+                    Tag::Item => {
+                        renderer.write("  - ")?;
+                    }
+                    Tag::FootnoteDefinition(_s) => {}
+                    Tag::Table(_alignments) => {}
+                    Tag::TableHead => {}
+                    Tag::TableRow => {}
+                    Tag::TableCell => {}
+                    Tag::Emphasis => {
+                        renderer.set_flags(RenderFlags::UNDERLINE)?;
+                    }
+                    Tag::Strong => {
+                        renderer.set_flags(RenderFlags::EMPHASIZED)?;
+                    }
+                    Tag::Strikethrough => {}
+                    Tag::Link(_, _, _) => {}
+                    Tag::Image(_, _, _) => {}
+                }
+            }
+            Event::End(tag) => match tag {
+                Tag::Paragraph => {
+                    renderer.write("\n\n")?;
+                }
+                Tag::Heading(size) => {
+                    // peel off everything but the centering command
+                    match size {
+                        1 | 2 | 3 | 4 => {
+                            renderer.restore()?.restore()?;
+                        }
+                        5 | _ => {
+                            renderer.restore()?;
+                        }
+                    }
+                    renderer.write("\n\n")?;
+                    // peel off the centering command now that we're at
+                    // the start of a line
+                    renderer.restore()?;
+                }
+                Tag::BlockQuote => {}
+                Tag::CodeBlock(format) => match format.into_string().as_str() {
+                    "qr" => {
+                        in_qr_code -= 1;
+                    }
+                    _ => {
+                        renderer.restore()?;
+                    }
+                },
+                Tag::List(_first_item_number) => {
+                    renderer.write("\n")?;
+                }
+                Tag::Item => {
+                    renderer.write("\n")?;
+                }
+                Tag::FootnoteDefinition(_s) => {}
+                Tag::Table(_alignments) => {}
+                Tag::TableHead => {}
+                Tag::TableRow => {}
+                Tag::TableCell => {}
+                Tag::Emphasis => {
+                    renderer.restore()?;
+                }
+                Tag::Strong => {
+                    renderer.restore()?;
+                }
+                Tag::Strikethrough => {}
+                Tag::Link(_, _, _) => {}
+                Tag::Image(_, _, _) => {}
+            },
+            Event::Text(contents) => {
+                if in_qr_code > 0 {
+                    renderer.write_qr(&contents.as_bytes())?;
+                } else {
+                    renderer.write(&contents)?;
+                }
+            }
+            Event::Code(contents) => {
+                renderer.set_red(true)?;
+                renderer.write(&contents)?;
+                renderer.restore()?;
+            }
+            Event::Html(_e) => {}
+            Event::FootnoteReference(_e) => {}
+            Event::SoftBreak => {
+                renderer.write("\n")?;
+            }
+            Event::HardBreak => {
+                renderer.write("\n\n")?;
+            }
+            Event::Rule => {
+                renderer.rule()?;
+                renderer.write("\n")?;
+            }
+            Event::TaskListMarker(_checked) => {}
+        }
+    }
+
+    renderer.cut()?;
 
     Ok(())
 }
