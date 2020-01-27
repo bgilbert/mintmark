@@ -47,7 +47,7 @@ impl Renderer {
                 restore: Vec::new(),
 
                 flags: RenderFlags::NARROW,
-                line_spacing: 12,
+                line_spacing: 24,
                 red: false,
                 unidirectional: false,
                 justification: Justification::Left,
