@@ -195,7 +195,7 @@ impl Renderer {
         // Enable unidirectional print mode for better alignment
         self.set_unidirectional(true)?;
         // Set line spacing to avoid gaps
-        self.set_line_spacing(14)?;
+        self.set_line_spacing(16)?;
 
         // Write code
         for yblock in 0..height / 8 {
@@ -204,7 +204,7 @@ impl Renderer {
             let mut line: Vec<u8> = vec![0x1b, b'*', 0, width_bytes[0], width_bytes[1]];
             for x in 0..width {
                 let mut byte: u8 = 0;
-                for row in image.iter().skip(yblock * 8).take(7) {
+                for row in image.iter().skip(yblock * 8).take(8) {
                     byte <<= 1;
                     byte |= row[x] as u8;
                 }
