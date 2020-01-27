@@ -208,9 +208,6 @@ impl Renderer {
                 }
                 line.push(byte);
             }
-            // Print twice for darker output
-            self.send(&line)?;
-            self.send(b"\r")?;
             self.send(&line)?;
             self.send(b"\n")?;
         }
