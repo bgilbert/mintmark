@@ -153,7 +153,7 @@ fn main() -> Result<(), io::Error> {
             Event::Html(_e) => {}
             Event::FootnoteReference(_e) => {}
             Event::SoftBreak => {
-                renderer.write("\n")?;
+                renderer.write(" ")?;
             }
             Event::HardBreak => {
                 renderer.write("\n\n")?;
