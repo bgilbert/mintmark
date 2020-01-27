@@ -218,6 +218,7 @@ impl Renderer {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn rule(&mut self) -> Result<(), io::Error> {
         let width_bytes = &(LINE_PIXELS as u16).to_le_bytes();
         // Bit image mode 0, vert 72 dpi, horz 80 dpi, width 200 dots

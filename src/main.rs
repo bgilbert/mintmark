@@ -159,8 +159,7 @@ fn main() -> Result<(), io::Error> {
                 renderer.write("\n\n")?;
             }
             Event::Rule => {
-                renderer.rule()?;
-                renderer.write("\n")?;
+                renderer.cut()?;
             }
             Event::TaskListMarker(_checked) => {}
         }
