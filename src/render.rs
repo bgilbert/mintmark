@@ -180,10 +180,6 @@ impl Renderer {
         let mut image: Vec<Vec<bool>> = Vec::with_capacity(LINE_PIXELS as usize);
         for line in image_str.split('\n') {
             let mut line_vec: Vec<bool> = Vec::with_capacity(LINE_PIXELS as usize);
-            let pad_size = (LINE_PIXELS as usize - line.len()) / 2;
-            for _ in 0..pad_size {
-                line_vec.push(false);
-            }
             for item in line.chars() {
                 line_vec.push(item == '#');
             }
@@ -196,6 +192,8 @@ impl Renderer {
         self.set_unidirectional(true)?;
         // Set line spacing to avoid gaps
         self.set_line_spacing(16)?;
+        // Center on line
+        self.set_justification(Justification::Center)?;
 
         // Write code
         for yblock in 0..height / 8 {
@@ -218,7 +216,7 @@ impl Renderer {
         }
 
         // Restore print mode
-        self.restore()?.restore()?;
+        self.restore()?.restore()?.restore()?;
 
         Ok(())
     }
