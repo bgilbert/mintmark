@@ -31,8 +31,6 @@ pub struct Renderer {
 
 #[derive(Clone)]
 struct RenderState {
-    restore: Vec<u8>,
-
     flags: RenderFlags,
     line_spacing: u8,
     red: bool,
@@ -44,8 +42,6 @@ impl Renderer {
     pub fn new() -> Result<Self, io::Error> {
         let mut renderer = Renderer {
             state: RenderState {
-                restore: Vec::new(),
-
                 flags: RenderFlags::NARROW,
                 line_spacing: 24,
                 red: false,
@@ -59,76 +55,38 @@ impl Renderer {
         Ok(renderer)
     }
 
-    fn save(&mut self) {
-        self.stack.push(self.state.clone());
-        self.state.restore = Vec::new();
-    }
-
-    // Returns reference to previous state.
-    fn prev(&self) -> &RenderState {
-        self.stack.last().expect("Root state has no parent")
-    }
-
-    fn mutate(&mut self, command: &[u8], old: &[u8], new: &[u8]) -> Result<&mut Self, io::Error> {
-        self.send(command)?;
-        self.send(new)?;
-        self.state.restore.extend_from_slice(command);
-        self.state.restore.extend_from_slice(old);
-        Ok(self)
-    }
-
     pub fn set_flags(&mut self, flags: RenderFlags) -> Result<&mut Self, io::Error> {
-        self.save();
+        self.stack.push(self.state.clone());
         self.state.flags |= flags;
-        self.mutate(
-            b"\x1b!",
-            &[self.prev().flags.bits],
-            &[self.state.flags.bits],
-        )?;
+        self.set_state(&self.state.clone())?;
         Ok(self)
     }
 
     pub fn clear_flags(&mut self, flags: RenderFlags) -> Result<&mut Self, io::Error> {
-        self.save();
+        self.stack.push(self.state.clone());
         self.state.flags &= !flags;
-        self.mutate(
-            b"\x1b!",
-            &[self.prev().flags.bits],
-            &[self.state.flags.bits],
-        )?;
+        self.set_state(&self.state.clone())?;
         Ok(self)
     }
 
     pub fn set_line_spacing(&mut self, spacing: u8) -> Result<&mut Self, io::Error> {
-        self.save();
+        self.stack.push(self.state.clone());
         self.state.line_spacing = spacing;
-        self.mutate(
-            b"\x1b3",
-            &[self.prev().line_spacing],
-            &[self.state.line_spacing],
-        )?;
+        self.set_state(&self.state.clone())?;
         Ok(self)
     }
 
     pub fn set_red(&mut self, red: bool) -> Result<&mut Self, io::Error> {
-        self.save();
+        self.stack.push(self.state.clone());
         self.state.red = red;
-        self.mutate(
-            b"\x1br",
-            &[self.prev().red as u8],
-            &[self.state.red as u8],
-        )?;
+        self.set_state(&self.state.clone())?;
         Ok(self)
     }
 
     pub fn set_unidirectional(&mut self, unidirectional: bool) -> Result<&mut Self, io::Error> {
-        self.save();
+        self.stack.push(self.state.clone());
         self.state.unidirectional = unidirectional;
-        self.mutate(
-            b"\x1bU",
-            &[self.prev().unidirectional as u8],
-            &[self.state.unidirectional as u8],
-        )?;
+        self.set_state(&self.state.clone())?;
         Ok(self)
     }
 
@@ -136,23 +94,33 @@ impl Renderer {
         &mut self,
         justification: Justification,
     ) -> Result<&mut Self, io::Error> {
-        self.save();
+        self.stack.push(self.state.clone());
         self.state.justification = justification;
-        self.mutate(
-            b"\x1ba",
-            &[self.prev().justification as u8],
-            &[self.state.justification as u8],
-        )?;
+        self.set_state(&self.state.clone())?;
         Ok(self)
     }
 
     pub fn restore(&mut self) -> Result<&mut Self, io::Error> {
-        self.send(&self.state.restore.clone())?;
         self.state = self
             .stack
             .pop()
             .expect("tried to unwind the root RenderState");
+        self.set_state(&self.state.clone())?;
         Ok(self)
+    }
+
+    fn set_state(&mut self, state: &RenderState) -> Result<(), io::Error> {
+        self.send(b"\x1b!")?;
+        self.send(&[state.flags.bits])?;
+        self.send(b"\x1b3")?;
+        self.send(&[state.line_spacing])?;
+        self.send(b"\x1br")?;
+        self.send(&[state.red as u8])?;
+        self.send(b"\x1bU")?;
+        self.send(&[state.unidirectional as u8])?;
+        self.send(b"\x1ba")?;
+        self.send(&[state.justification as u8])?;
+        Ok(())
     }
 
     pub fn write(&mut self, contents: &str) -> Result<(), io::Error> {
