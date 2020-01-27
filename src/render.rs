@@ -4,7 +4,8 @@ use encoding::types::{EncoderTrap, Encoding};
 use qrcode::{EcLevel, QrCode};
 use std::io::{self, Write};
 
-const LINE_PIXELS: u16 = 200;
+const LINE_PIXELS_IMAGE: u16 = 200;
+const LINE_PIXELS_TEXT: u16 = 320;
 
 bitflags! {
     pub struct RenderFlags: u8 {
@@ -16,7 +17,7 @@ bitflags! {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum Justification {
     Left = 0,
     Center = 1,
@@ -24,12 +25,23 @@ pub enum Justification {
     Right = 2,
 }
 
+#[derive(Clone)]
+enum LineEntry {
+    Char(u8),
+    State(RenderState),
+}
+
 pub struct Renderer {
     state: RenderState,
     stack: Vec<RenderState>,
+
+    line: Vec<LineEntry>,
+    line_start_state: RenderState,
+    line_cur_state: RenderState,
+    line_width: u16,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 struct RenderState {
     flags: RenderFlags,
     line_spacing: u8,
@@ -40,15 +52,20 @@ struct RenderState {
 
 impl Renderer {
     pub fn new() -> Result<Self, io::Error> {
+        let state = RenderState {
+            flags: RenderFlags::NARROW,
+            line_spacing: 24,
+            red: false,
+            unidirectional: false,
+            justification: Justification::Left,
+        };
         let mut renderer = Renderer {
-            state: RenderState {
-                flags: RenderFlags::NARROW,
-                line_spacing: 24,
-                red: false,
-                unidirectional: false,
-                justification: Justification::Left,
-            },
+            state: state.clone(),
             stack: Vec::new(),
+            line: Vec::new(),
+            line_start_state: state.clone(),
+            line_cur_state: state,
+            line_width: 0,
         };
         // Reset printer
         renderer.send(b"\x1b@")?;
@@ -124,15 +141,29 @@ impl Renderer {
     }
 
     pub fn write(&mut self, contents: &str) -> Result<(), io::Error> {
+        if self.state != self.line_cur_state {
+            self.line.push(LineEntry::State(self.state.clone()));
+            self.line_cur_state = self.state.clone();
+        }
         let mut bytes = ASCII
             .encode(contents, EncoderTrap::Replace)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         for byte in &mut bytes {
-            if (*byte < 0x20 || *byte > 0x7e) && *byte != b'\n' {
+            if *byte == b'\n' {
+                self.send_line()?;
+                continue;
+            }
+            if *byte < 0x20 || *byte > 0x7e {
                 *byte = b'?';
             }
+            let char_width = self.char_width(&self.state.clone());
+            if self.line_width + char_width > LINE_PIXELS_TEXT {
+                self.send_line()?;
+            }
+            self.line.push(LineEntry::Char(*byte));
+            self.line_width += char_width;
         }
-        self.send(&bytes)
+        Ok(())
     }
 
     pub fn write_qr(&mut self, contents: &[u8]) -> Result<(), io::Error> {
@@ -141,13 +172,13 @@ impl Renderer {
             .expect("Building QR code failed");
         let image_str = code
             .render()
-            .max_dimensions(LINE_PIXELS as u32, LINE_PIXELS as u32)
+            .max_dimensions(LINE_PIXELS_IMAGE as u32, LINE_PIXELS_IMAGE as u32)
             .dark_color('#')
             .light_color(' ')
             .build();
-        let mut image: Vec<Vec<bool>> = Vec::with_capacity(LINE_PIXELS as usize);
+        let mut image: Vec<Vec<bool>> = Vec::with_capacity(LINE_PIXELS_IMAGE as usize);
         for line in image_str.split('\n') {
-            let mut line_vec: Vec<bool> = Vec::with_capacity(LINE_PIXELS as usize);
+            let mut line_vec: Vec<bool> = Vec::with_capacity(LINE_PIXELS_IMAGE as usize);
             for item in line.chars() {
                 line_vec.push(item == '#');
             }
@@ -188,10 +219,10 @@ impl Renderer {
 
     #[allow(dead_code)]
     pub fn rule(&mut self) -> Result<(), io::Error> {
-        let width_bytes = &(LINE_PIXELS as u16).to_le_bytes();
+        let width_bytes = &(LINE_PIXELS_IMAGE as u16).to_le_bytes();
         // Bit image mode 0, vert 72 dpi, horz 80 dpi, width 200 dots
         let mut line: Vec<u8> = vec![0x1b, b'*', 0, width_bytes[0], width_bytes[1]];
-        line.resize(line.len() + LINE_PIXELS as usize, 0x10);
+        line.resize(line.len() + LINE_PIXELS_IMAGE as usize, 0x10);
         line.push(b'\n');
         self.send(&line)?;
         Ok(())
@@ -202,7 +233,41 @@ impl Renderer {
         self.send(b"\x1dV\x42\x68")
     }
 
+    fn send_line(&mut self) -> Result<(), io::Error> {
+        self.set_state(&self.line_start_state.clone())?;
+        for entry in self.line.clone().iter() {
+            match entry {
+                LineEntry::Char(c) => {
+                    self.send(&[*c])?;
+                }
+                LineEntry::State(state) => {
+                    self.set_state(&state)?;
+                }
+            }
+        }
+        self.send(b"\n")?;
+
+        self.line.clear();
+        self.line_start_state = self.state.clone();
+        self.line_cur_state = self.state.clone();
+        self.line_width = 0;
+
+        Ok(())
+    }
+
     fn send(&mut self, buf: &[u8]) -> Result<(), io::Error> {
         io::stdout().write_all(buf)
+    }
+
+    fn char_width(&mut self, state: &RenderState) -> u16 {
+        let mut width: u16 = if !(state.flags & RenderFlags::NARROW).is_empty() {
+            8
+        } else {
+            10
+        };
+        if !(state.flags & RenderFlags::DOUBLE_WIDTH).is_empty() {
+            width *= 2
+        }
+        width
     }
 }
