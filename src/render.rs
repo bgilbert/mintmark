@@ -82,8 +82,8 @@ impl Renderer {
         self.state.flags |= flags;
         self.mutate(
             b"\x1b!",
-            &vec![self.prev().flags.bits],
-            &vec![self.state.flags.bits],
+            &[self.prev().flags.bits],
+            &[self.state.flags.bits],
         )?;
         Ok(self)
     }
@@ -93,8 +93,8 @@ impl Renderer {
         self.state.flags &= !flags;
         self.mutate(
             b"\x1b!",
-            &vec![self.prev().flags.bits],
-            &vec![self.state.flags.bits],
+            &[self.prev().flags.bits],
+            &[self.state.flags.bits],
         )?;
         Ok(self)
     }
@@ -104,8 +104,8 @@ impl Renderer {
         self.state.line_spacing = spacing;
         self.mutate(
             b"\x1b3",
-            &vec![self.prev().line_spacing],
-            &vec![self.state.line_spacing],
+            &[self.prev().line_spacing],
+            &[self.state.line_spacing],
         )?;
         Ok(self)
     }
@@ -115,8 +115,8 @@ impl Renderer {
         self.state.red = red;
         self.mutate(
             b"\x1br",
-            &vec![self.prev().red as u8],
-            &vec![self.state.red as u8],
+            &[self.prev().red as u8],
+            &[self.state.red as u8],
         )?;
         Ok(self)
     }
@@ -126,8 +126,8 @@ impl Renderer {
         self.state.unidirectional = unidirectional;
         self.mutate(
             b"\x1bU",
-            &vec![self.prev().unidirectional as u8],
-            &vec![self.state.unidirectional as u8],
+            &[self.prev().unidirectional as u8],
+            &[self.state.unidirectional as u8],
         )?;
         Ok(self)
     }
@@ -140,8 +140,8 @@ impl Renderer {
         self.state.justification = justification;
         self.mutate(
             b"\x1ba",
-            &vec![self.prev().justification as u8],
-            &vec![self.state.justification as u8],
+            &[self.prev().justification as u8],
+            &[self.state.justification as u8],
         )?;
         Ok(self)
     }
@@ -159,9 +159,9 @@ impl Renderer {
         let mut bytes = ASCII
             .encode(contents, EncoderTrap::Replace)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-        for i in 0..bytes.len() {
-            if (bytes[i] < 0x20 || bytes[i] > 0x7e) && bytes[i] != b'\n' {
-                bytes[i] = b'?';
+        for byte in &mut bytes {
+            if (*byte < 0x20 || *byte > 0x7e) && *byte != b'\n' {
+                *byte = b'?';
             }
         }
         self.send(&bytes)
@@ -178,7 +178,7 @@ impl Renderer {
             .light_color(' ')
             .build();
         let mut image: Vec<Vec<bool>> = Vec::with_capacity(LINE_PIXELS as usize);
-        for line in image_str.split("\n") {
+        for line in image_str.split('\n') {
             let mut line_vec: Vec<bool> = Vec::with_capacity(LINE_PIXELS as usize);
             let pad_size = (LINE_PIXELS as usize - line.len()) / 2;
             for _ in 0..pad_size {
@@ -204,9 +204,9 @@ impl Renderer {
             let mut line: Vec<u8> = vec![0x1b, b'*', 0, width_bytes[0], width_bytes[1]];
             for x in 0..width {
                 let mut byte: u8 = 0;
-                for y in yblock * 8..yblock * 8 + 7 {
+                for row in image.iter().skip(yblock * 8).take(7) {
                     byte <<= 1;
-                    byte |= image[y][x] as u8;
+                    byte |= row[x] as u8;
                 }
                 line.push(byte);
             }
