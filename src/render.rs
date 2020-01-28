@@ -47,6 +47,7 @@ struct RenderState {
     line_spacing: u8,
     red: bool,
     unidirectional: bool,
+    strikethrough: bool,
     justification: Justification,
 }
 
@@ -57,6 +58,7 @@ impl Renderer {
             line_spacing: 24,
             red: false,
             unidirectional: false,
+            strikethrough: false,
             justification: Justification::Left,
         };
         let mut renderer = Renderer {
@@ -103,6 +105,13 @@ impl Renderer {
     pub fn set_unidirectional(&mut self, unidirectional: bool) -> Result<&mut Self, io::Error> {
         self.stack.push(self.state.clone());
         self.state.unidirectional = unidirectional;
+        self.set_state(&self.state.clone())?;
+        Ok(self)
+    }
+
+    pub fn set_strikethrough(&mut self, strikethrough: bool) -> Result<&mut Self, io::Error> {
+        self.stack.push(self.state.clone());
+        self.state.strikethrough = strikethrough;
         self.set_state(&self.state.clone())?;
         Ok(self)
     }
@@ -234,16 +243,24 @@ impl Renderer {
     }
 
     fn send_line(&mut self) -> Result<(), io::Error> {
-        self.set_state(&self.line_start_state.clone())?;
-        for entry in self.line.clone().iter() {
-            match entry {
-                LineEntry::Char(c) => {
-                    self.send(&[*c])?;
-                }
-                LineEntry::State(state) => {
-                    self.set_state(&state)?;
+        for pass in PASSES.iter() {
+            if !self.active_for_line(pass) {
+                continue;
+            }
+            let mut active = (pass.active)(&self.line_start_state);
+            self.set_state(&(pass.state_map)(self.line_start_state.clone(), active))?;
+            for entry in self.line.clone().iter() {
+                match entry {
+                    LineEntry::Char(c) => {
+                        self.send(&[(pass.char_map)(*c, active)])?;
+                    }
+                    LineEntry::State(state) => {
+                        active = (pass.active)(&state);
+                        self.set_state(&(pass.state_map)(state.clone(), active))?;
+                    }
                 }
             }
+            self.send(b"\r")?;
         }
         self.send(b"\n")?;
 
@@ -253,6 +270,20 @@ impl Renderer {
         self.line_width = 0;
 
         Ok(())
+    }
+
+    fn active_for_line(&self, pass: &LinePass) -> bool {
+        if (pass.active)(&self.line_start_state) {
+            return true;
+        }
+        for entry in self.line.iter() {
+            if let LineEntry::State(state) = entry {
+                if (pass.active)(state) {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<(), io::Error> {
@@ -271,3 +302,62 @@ impl Renderer {
         width
     }
 }
+
+struct LinePass {
+    #[allow(dead_code)]
+    name: &'static str,
+    active: fn(state: &RenderState) -> bool,
+    state_map: fn(state: RenderState, active: bool) -> RenderState,
+    char_map: fn(char: u8, active: bool) -> u8,
+}
+
+static PASSES: [LinePass; 4] = [
+    LinePass {
+        name: "black",
+        active: |state| !state.red,
+        state_map: |mut state, active| {
+            if !active {
+                state.red = false;
+                state.flags &= !RenderFlags::UNDERLINE
+            };
+            state
+        },
+        char_map: |char, active| if active { char } else { b' ' },
+    },
+    LinePass {
+        name: "black strikethrough",
+        active: |state| !state.red && state.strikethrough,
+        state_map: |mut state, active| {
+            if !active {
+                state.red = false;
+                state.flags &= !RenderFlags::UNDERLINE
+            };
+            state
+        },
+        char_map: |_char, active| if active { b'-' } else { b' ' },
+    },
+    LinePass {
+        name: "red",
+        active: |state| state.red,
+        state_map: |mut state, active| {
+            if !active {
+                state.red = true;
+                state.flags &= !RenderFlags::UNDERLINE
+            };
+            state
+        },
+        char_map: |char, active| if active { char } else { b' ' },
+    },
+    LinePass {
+        name: "red strikethrough",
+        active: |state| state.red && state.strikethrough,
+        state_map: |mut state, active| {
+            if !active {
+                state.red = true;
+                state.flags &= !RenderFlags::UNDERLINE
+            };
+            state
+        },
+        char_map: |_char, active| if active { b'-' } else { b' ' },
+    },
+];

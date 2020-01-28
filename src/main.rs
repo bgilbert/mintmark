@@ -84,7 +84,9 @@ fn main() -> Result<(), io::Error> {
                     Tag::Strong => {
                         renderer.set_flags(RenderFlags::EMPHASIZED)?;
                     }
-                    Tag::Strikethrough => {}
+                    Tag::Strikethrough => {
+                        renderer.set_strikethrough(true)?;
+                    }
                     Tag::Link(_, _, _) => {}
                     Tag::Image(_, _, _) => {}
                 }
@@ -134,7 +136,9 @@ fn main() -> Result<(), io::Error> {
                 Tag::Strong => {
                     renderer.restore()?;
                 }
-                Tag::Strikethrough => {}
+                Tag::Strikethrough => {
+                    renderer.restore()?;
+                }
                 Tag::Link(_, _, _) => {}
                 Tag::Image(_, _, _) => {}
             },
