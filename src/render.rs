@@ -165,7 +165,7 @@ impl Renderer {
             if *byte < 0x20 || *byte > 0x7e {
                 *byte = b'?';
             }
-            let char_width = self.char_width(&self.state.clone());
+            let char_width = self.state.char_bounding_width();
             if self.line_width + char_width > LINE_PIXELS_TEXT {
                 self.send_line()?;
             }
@@ -289,14 +289,16 @@ impl Renderer {
     fn send(&mut self, buf: &[u8]) -> Result<(), io::Error> {
         io::stdout().write_all(buf)
     }
+}
 
-    fn char_width(&mut self, state: &RenderState) -> u16 {
-        let mut width: u16 = if !(state.flags & RenderFlags::NARROW).is_empty() {
+impl RenderState {
+    fn char_bounding_width(&self) -> u16 {
+        let mut width: u16 = if !(self.flags & RenderFlags::NARROW).is_empty() {
             8
         } else {
             10
         };
-        if !(state.flags & RenderFlags::DOUBLE_WIDTH).is_empty() {
+        if !(self.flags & RenderFlags::DOUBLE_WIDTH).is_empty() {
             width *= 2
         }
         width
