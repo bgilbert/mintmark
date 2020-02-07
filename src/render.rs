@@ -205,9 +205,7 @@ impl Renderer {
 
         // Write code
         for yblock in 0..height / 8 {
-            let width_bytes = &(width as u16).to_le_bytes();
-            // Bit image mode 0, vert 72 dpi, horz 80 dpi, width 200 dots
-            let mut line: Vec<u8> = vec![0x1b, b'*', 0, width_bytes[0], width_bytes[1]];
+            let mut line = bit_image_prologue(width as u16);
             for x in 0..width {
                 let mut byte: u8 = 0;
                 for row in image.iter().skip(yblock * 8).take(8) {
@@ -228,9 +226,7 @@ impl Renderer {
 
     #[allow(dead_code)]
     pub fn rule(&mut self) -> Result<(), io::Error> {
-        let width_bytes = &(LINE_PIXELS_IMAGE as u16).to_le_bytes();
-        // Bit image mode 0, vert 72 dpi, horz 80 dpi, width 200 dots
-        let mut line: Vec<u8> = vec![0x1b, b'*', 0, width_bytes[0], width_bytes[1]];
+        let mut line = bit_image_prologue(LINE_PIXELS_IMAGE);
         line.resize(line.len() + LINE_PIXELS_IMAGE as usize, 0x10);
         line.push(b'\n');
         self.send(&line)?;
@@ -305,6 +301,12 @@ impl RenderState {
         }
         width
     }
+}
+
+fn bit_image_prologue(width: u16) -> Vec<u8> {
+    let width_bytes = &(width as u16).to_le_bytes();
+    // Bit image mode 0, vert 72 dpi, horz 80 dpi, width 200 dots
+    vec![0x1b, b'*', 0, width_bytes[0], width_bytes[1]]
 }
 
 struct LinePass {
