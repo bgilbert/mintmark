@@ -252,7 +252,7 @@ impl Renderer {
             for entry in self.line.clone().iter() {
                 match entry {
                     LineEntry::Char(c) => {
-                        self.send(&[(pass.char_map)(*c, active)])?;
+                        self.send(&(pass.char_map)(*c, active))?;
                     }
                     LineEntry::State(state) => {
                         active = (pass.active)(&state);
@@ -308,7 +308,7 @@ struct LinePass {
     name: &'static str,
     active: fn(state: &RenderState) -> bool,
     state_map: fn(state: RenderState, active: bool) -> RenderState,
-    char_map: fn(char: u8, active: bool) -> u8,
+    char_map: fn(char: u8, active: bool) -> Vec<u8>,
 }
 
 static PASSES: [LinePass; 4] = [
@@ -322,7 +322,7 @@ static PASSES: [LinePass; 4] = [
             };
             state
         },
-        char_map: |char, active| if active { char } else { b' ' },
+        char_map: |char, active| if active { vec![char] } else { vec![b' '] },
     },
     LinePass {
         name: "black strikethrough",
@@ -334,7 +334,7 @@ static PASSES: [LinePass; 4] = [
             };
             state
         },
-        char_map: |_char, active| if active { b'-' } else { b' ' },
+        char_map: |_char, active| if active { vec![b'-'] } else { vec![b' '] },
     },
     LinePass {
         name: "red",
@@ -346,7 +346,7 @@ static PASSES: [LinePass; 4] = [
             };
             state
         },
-        char_map: |char, active| if active { char } else { b' ' },
+        char_map: |char, active| if active { vec![char] } else { vec![b' '] },
     },
     LinePass {
         name: "red strikethrough",
@@ -358,6 +358,6 @@ static PASSES: [LinePass; 4] = [
             };
             state
         },
-        char_map: |_char, active| if active { b'-' } else { b' ' },
+        char_map: |_char, active| if active { vec![b'-'] } else { vec![b' '] },
     },
 ];
