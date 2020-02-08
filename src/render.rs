@@ -301,6 +301,18 @@ impl RenderState {
         }
         width
     }
+
+    fn char_overstrike_width(&self) -> u16 {
+        let mut width: u16 = if !(self.flags & RenderFlags::NARROW).is_empty() {
+            5
+        } else {
+            6
+        };
+        if !(self.flags & RenderFlags::DOUBLE_WIDTH).is_empty() {
+            width *= 2
+        }
+        width
+    }
 }
 
 fn bit_image_prologue(width: u16) -> Vec<u8> {
@@ -315,6 +327,19 @@ struct LinePass {
     active: fn(state: &RenderState) -> bool,
     state_map: fn(state: RenderState, active: bool) -> RenderState,
     char_map: fn(char: u8, state: &RenderState, active: bool) -> Vec<u8>,
+}
+
+fn strikethrough_char_map(_char: u8, state: &RenderState, active: bool) -> Vec<u8> {
+    if active {
+        let char_width = state.char_overstrike_width();
+        let mut ret = bit_image_prologue(char_width);
+        for _ in 0..char_width {
+            ret.push(0x08);
+        }
+        ret
+    } else {
+        vec![b' ']
+    }
 }
 
 static PASSES: [LinePass; 4] = [
@@ -340,7 +365,7 @@ static PASSES: [LinePass; 4] = [
             };
             state
         },
-        char_map: |_char, _state, active| if active { vec![b'-'] } else { vec![b' '] },
+        char_map: strikethrough_char_map,
     },
     LinePass {
         name: "red",
@@ -364,6 +389,6 @@ static PASSES: [LinePass; 4] = [
             };
             state
         },
-        char_map: |_char, _state, active| if active { vec![b'-'] } else { vec![b' '] },
+        char_map: strikethrough_char_map,
     },
 ];
