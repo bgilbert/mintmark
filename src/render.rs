@@ -77,42 +77,36 @@ impl Renderer {
     pub fn set_flags(&mut self, flags: RenderFlags) -> Result<&mut Self, io::Error> {
         self.stack.push(self.state.clone());
         self.state.flags |= flags;
-        self.set_state(&self.state.clone())?;
         Ok(self)
     }
 
     pub fn clear_flags(&mut self, flags: RenderFlags) -> Result<&mut Self, io::Error> {
         self.stack.push(self.state.clone());
         self.state.flags &= !flags;
-        self.set_state(&self.state.clone())?;
         Ok(self)
     }
 
     pub fn set_line_spacing(&mut self, spacing: u8) -> Result<&mut Self, io::Error> {
         self.stack.push(self.state.clone());
         self.state.line_spacing = spacing;
-        self.set_state(&self.state.clone())?;
         Ok(self)
     }
 
     pub fn set_red(&mut self, red: bool) -> Result<&mut Self, io::Error> {
         self.stack.push(self.state.clone());
         self.state.red = red;
-        self.set_state(&self.state.clone())?;
         Ok(self)
     }
 
     pub fn set_unidirectional(&mut self, unidirectional: bool) -> Result<&mut Self, io::Error> {
         self.stack.push(self.state.clone());
         self.state.unidirectional = unidirectional;
-        self.set_state(&self.state.clone())?;
         Ok(self)
     }
 
     pub fn set_strikethrough(&mut self, strikethrough: bool) -> Result<&mut Self, io::Error> {
         self.stack.push(self.state.clone());
         self.state.strikethrough = strikethrough;
-        self.set_state(&self.state.clone())?;
         Ok(self)
     }
 
@@ -122,7 +116,6 @@ impl Renderer {
     ) -> Result<&mut Self, io::Error> {
         self.stack.push(self.state.clone());
         self.state.justification = justification;
-        self.set_state(&self.state.clone())?;
         Ok(self)
     }
 
@@ -131,7 +124,6 @@ impl Renderer {
             .stack
             .pop()
             .expect("tried to unwind the root RenderState");
-        self.set_state(&self.state.clone())?;
         Ok(self)
     }
 
@@ -202,6 +194,8 @@ impl Renderer {
         self.set_line_spacing(16)?;
         // Center on line
         self.set_justification(Justification::Center)?;
+        // We bypass the line buffer, so sync state directly to printer
+        self.set_state(&self.state.clone())?;
 
         // Write code
         for yblock in 0..height / 8 {
