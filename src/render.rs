@@ -127,7 +127,7 @@ impl Renderer {
         Ok(self)
     }
 
-    fn set_state(&mut self, state: &RenderState) -> Result<(), io::Error> {
+    fn set_printer_state(&mut self, state: &RenderState) -> Result<(), io::Error> {
         self.send(b"\x1b!")?;
         self.send(&[state.flags.bits])?;
         self.send(b"\x1b3")?;
@@ -195,7 +195,7 @@ impl Renderer {
         // Center on line
         self.set_justification(Justification::Center)?;
         // We bypass the line buffer, so sync state directly to printer
-        self.set_state(&self.state.clone())?;
+        self.set_printer_state(&self.state.clone())?;
 
         // Write code
         for yblock in 0..height / 8 {
@@ -239,7 +239,7 @@ impl Renderer {
             }
             let mut state = self.line_start_state.clone();
             let mut active = (pass.active)(&state);
-            self.set_state(&(pass.state_map)(state.clone(), active))?;
+            self.set_printer_state(&(pass.state_map)(state.clone(), active))?;
             for entry in self.line.clone().iter() {
                 match entry {
                     LineEntry::Char(c) => {
@@ -248,7 +248,7 @@ impl Renderer {
                     LineEntry::State(new_state) => {
                         state = new_state.clone();
                         active = (pass.active)(&state);
-                        self.set_state(&(pass.state_map)(state.clone(), active))?;
+                        self.set_printer_state(&(pass.state_map)(state.clone(), active))?;
                     }
                 }
             }
