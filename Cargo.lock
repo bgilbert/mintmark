@@ -81,6 +81,16 @@ version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
+name = "mintmark"
+version = "0.1.0"
+dependencies = [
+ "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "encoding 0.2.33 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pulldown-cmark 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "qrcode 0.11.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "pulldown-cmark"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -97,16 +107,6 @@ version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "checked_int_cast 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "u220b"
-version = "0.0.1"
-dependencies = [
- "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "encoding 0.2.33 (registry+https://github.com/rust-lang/crates.io-index)",
- "pulldown-cmark 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "qrcode 0.11.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
