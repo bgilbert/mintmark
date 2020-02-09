@@ -112,7 +112,7 @@ fn main() -> Result<(), io::Error> {
                 }
                 Tag::BlockQuote => {}
                 Tag::CodeBlock(format) => match format.into_string().as_str() {
-                    "qr" => {
+                    "qrcode" => {
                         in_qr_code -= 1;
                     }
                     _ => {
