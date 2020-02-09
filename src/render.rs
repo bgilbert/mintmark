@@ -268,15 +268,6 @@ impl Renderer {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    pub fn rule(&mut self) -> Result<(), io::Error> {
-        let mut line = bit_image_prologue(LINE_PIXELS_IMAGE)?;
-        line.resize(line.len() + LINE_PIXELS_IMAGE, 0x10);
-        line.push(b'\n');
-        self.send(&line)?;
-        Ok(())
-    }
-
     // Advance paper and perform partial cut
     pub fn cut(&mut self) -> Result<(), io::Error> {
         self.send(b"\x1dV\x42\x68")
