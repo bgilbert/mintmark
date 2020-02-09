@@ -39,6 +39,9 @@ pub struct Renderer {
     line_start_state: RenderState,
     line_cur_state: RenderState,
     line_width: u16,
+
+    word: Vec<u8>,
+    word_has_letters: bool,
 }
 
 #[derive(Clone, Eq, PartialEq)]
@@ -68,6 +71,8 @@ impl Renderer {
             line_start_state: state.clone(),
             line_cur_state: state,
             line_width: 0,
+            word: Vec::new(),
+            word_has_letters: false,
         };
         // Reset printer
         renderer.send(b"\x1b@")?;
@@ -142,28 +147,72 @@ impl Renderer {
     }
 
     pub fn write(&mut self, contents: &str) -> Result<(), io::Error> {
-        if self.state != self.line_cur_state {
-            self.line.push(LineEntry::State(self.state.clone()));
-            self.line_cur_state = self.state.clone();
-        }
         let mut bytes = ASCII
             .encode(contents, EncoderTrap::Replace)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         for byte in &mut bytes {
+            // Got to the next word break?  Write out the word.
+            if self.word_has_letters && (*byte == b'\n' || *byte == b' ') {
+                // Start a new word.
+                self.write_word()?;
+            }
+            // Now any new chars in the word buffer will be in the current
+            // RenderState.  Sync it to the line buffer.
+            if self.state != self.line_cur_state {
+                self.line.push(LineEntry::State(self.state.clone()));
+                self.line_cur_state = self.state.clone();
+            }
+            // Hard line break?  Send it and move on.
             if *byte == b'\n' {
                 self.send_line()?;
                 continue;
             }
+            // Map control sequences other than \n
             if *byte < 0x20 || *byte > 0x7e {
                 *byte = b'?';
             }
-            let char_width = self.state.char_bounding_width();
+            // Printables and spaces go in the word.  Once we have at
+            // least one printable, the word becomes eligible for writing.
+            self.word.push(*byte);
+            if *byte != b' ' {
+                self.word_has_letters = true;
+            }
+        }
+        Ok(())
+    }
+
+    fn write_word(&mut self) -> Result<(), io::Error> {
+        let char_width = self.line_cur_state.char_bounding_width();
+        let width = self.word.len() * char_width as usize;
+
+        // If we have a partial line and this word won't fit on it, start
+        // a new line.
+        let mut soft_wrapped = false;
+        if width <= (LINE_PIXELS_TEXT as usize) && (self.line_width as usize) + width > (LINE_PIXELS_TEXT as usize) {
+            self.send_line()?;
+            soft_wrapped = true;
+        }
+
+        // Ignore spaces at the beginning of a soft-wrapped line, then
+        // push the rest of the word.
+        for ch in self
+            .word
+            .clone()
+            .iter()
+            .filter(|ch| !soft_wrapped || **ch != b' ')
+        {
+            // If we've reached the end of the line just within this word,
+            // just break in the middle of the word.
             if self.line_width + char_width > LINE_PIXELS_TEXT {
                 self.send_line()?;
             }
-            self.line.push(LineEntry::Char(*byte));
+
+            self.line.push(LineEntry::Char(*ch));
             self.line_width += char_width;
         }
+
+        self.word.clear();
+        self.word_has_letters = false;
         Ok(())
     }
 
@@ -257,8 +306,7 @@ impl Renderer {
         self.send(b"\n")?;
 
         self.line.clear();
-        self.line_start_state = self.state.clone();
-        self.line_cur_state = self.state.clone();
+        self.line_start_state = self.line_cur_state.clone();
         self.line_width = 0;
 
         Ok(())
