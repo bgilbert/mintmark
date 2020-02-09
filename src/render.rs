@@ -2,10 +2,11 @@ use bitflags::bitflags;
 use encoding::all::ASCII;
 use encoding::types::{EncoderTrap, Encoding};
 use qrcode::{EcLevel, QrCode};
+use std::convert::TryFrom;
 use std::io::{self, Write};
 
-const LINE_PIXELS_IMAGE: u16 = 200;
-const LINE_PIXELS_TEXT: u16 = 320;
+const LINE_PIXELS_IMAGE: usize = 200;
+const LINE_PIXELS_TEXT: usize = 320;
 
 bitflags! {
     pub struct RenderFlags: u8 {
@@ -38,7 +39,7 @@ pub struct Renderer {
     line: Vec<LineEntry>,
     line_start_state: RenderState,
     line_cur_state: RenderState,
-    line_width: u16,
+    line_width: usize,
 
     word: Vec<u8>,
     word_has_letters: bool,
@@ -183,12 +184,12 @@ impl Renderer {
 
     fn write_word(&mut self) -> Result<(), io::Error> {
         let char_width = self.line_cur_state.char_bounding_width();
-        let width = self.word.len() * char_width as usize;
+        let width = self.word.len() * char_width;
 
         // If we have a partial line and this word won't fit on it, start
         // a new line.
         let mut soft_wrapped = false;
-        if width <= (LINE_PIXELS_TEXT as usize) && (self.line_width as usize) + width > (LINE_PIXELS_TEXT as usize) {
+        if width <= LINE_PIXELS_TEXT && self.line_width + width > LINE_PIXELS_TEXT {
             self.send_line()?;
             soft_wrapped = true;
         }
@@ -226,9 +227,9 @@ impl Renderer {
             .dark_color('#')
             .light_color(' ')
             .build();
-        let mut image: Vec<Vec<bool>> = Vec::with_capacity(LINE_PIXELS_IMAGE as usize);
+        let mut image: Vec<Vec<bool>> = Vec::with_capacity(LINE_PIXELS_IMAGE);
         for line in image_str.split('\n') {
-            let mut line_vec: Vec<bool> = Vec::with_capacity(LINE_PIXELS_IMAGE as usize);
+            let mut line_vec: Vec<bool> = Vec::with_capacity(LINE_PIXELS_IMAGE);
             for item in line.chars() {
                 line_vec.push(item == '#');
             }
@@ -248,7 +249,7 @@ impl Renderer {
 
         // Write code
         for yblock in 0..height / 8 {
-            let mut line = bit_image_prologue(width as u16);
+            let mut line = bit_image_prologue(width)?;
             for x in 0..width {
                 let mut byte: u8 = 0;
                 for row in image.iter().skip(yblock * 8).take(8) {
@@ -269,8 +270,8 @@ impl Renderer {
 
     #[allow(dead_code)]
     pub fn rule(&mut self) -> Result<(), io::Error> {
-        let mut line = bit_image_prologue(LINE_PIXELS_IMAGE);
-        line.resize(line.len() + LINE_PIXELS_IMAGE as usize, 0x10);
+        let mut line = bit_image_prologue(LINE_PIXELS_IMAGE)?;
+        line.resize(line.len() + LINE_PIXELS_IMAGE, 0x10);
         line.push(b'\n');
         self.send(&line)?;
         Ok(())
@@ -332,8 +333,8 @@ impl Renderer {
 }
 
 impl RenderState {
-    fn char_bounding_width(&self) -> u16 {
-        let mut width: u16 = if !(self.flags & RenderFlags::NARROW).is_empty() {
+    fn char_bounding_width(&self) -> usize {
+        let mut width: usize = if !(self.flags & RenderFlags::NARROW).is_empty() {
             8
         } else {
             10
@@ -344,8 +345,8 @@ impl RenderState {
         width
     }
 
-    fn char_overstrike_width(&self) -> u16 {
-        let mut width: u16 = if !(self.flags & RenderFlags::NARROW).is_empty() {
+    fn char_overstrike_width(&self) -> usize {
+        let mut width: usize = if !(self.flags & RenderFlags::NARROW).is_empty() {
             5
         } else {
             6
@@ -357,10 +358,18 @@ impl RenderState {
     }
 }
 
-fn bit_image_prologue(width: u16) -> Vec<u8> {
-    let width_bytes = &(width as u16).to_le_bytes();
-    // Bit image mode 0, vert 72 dpi, horz 80 dpi, width 200 dots
-    vec![0x1b, b'*', 0, width_bytes[0], width_bytes[1]]
+fn bit_image_prologue(width: usize) -> Result<Vec<u8>, io::Error> {
+    match u16::try_from(width) {
+        Ok(width_u16) => {
+            let width_bytes = &width_u16.to_le_bytes();
+            // Bit image mode 0, vert 72 dpi, horz 80 dpi, width 200 dots
+            Ok(vec![0x1b, b'*', 0, width_bytes[0], width_bytes[1]])
+        }
+        Err(_) => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "width too large",
+        )),
+    }
 }
 
 struct LinePass {
@@ -374,7 +383,7 @@ struct LinePass {
 fn strikethrough_char_map(_char: u8, state: &RenderState, active: bool) -> Vec<u8> {
     if active {
         let char_width = state.char_overstrike_width();
-        let mut ret = bit_image_prologue(char_width);
+        let mut ret = bit_image_prologue(char_width).expect("overstrike width larger than u16");
         for _ in 0..char_width {
             ret.push(0x08);
         }
