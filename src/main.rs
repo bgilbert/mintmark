@@ -74,6 +74,7 @@ fn main() -> Result<(), io::Error> {
                     Tag::List(_first_item_number) => {}
                     Tag::Item => {
                         renderer.write("  - ")?;
+                        renderer.add_indent(4);
                     }
                     Tag::FootnoteDefinition(_s) => {}
                     Tag::Table(_alignments) => {}
@@ -127,6 +128,7 @@ fn main() -> Result<(), io::Error> {
                     renderer.write("\n")?;
                 }
                 Tag::Item => {
+                    renderer.restore();
                     renderer.write("\n")?;
                 }
                 Tag::FootnoteDefinition(_s) => {}
