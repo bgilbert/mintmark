@@ -4,6 +4,7 @@ use encoding::types::{EncoderTrap, Encoding};
 use qrcode::{EcLevel, QrCode};
 use std::convert::TryFrom;
 use std::io::{self, Write};
+use std::rc::Rc;
 
 const LINE_PIXELS_IMAGE: usize = 200;
 const LINE_PIXELS_TEXT: usize = 320;
@@ -29,16 +30,16 @@ pub enum Justification {
 #[derive(Clone)]
 enum LineEntry {
     Char(u8),
-    State(RenderState),
+    State(Rc<RenderState>),
 }
 
 pub struct Renderer {
-    state: RenderState,
-    stack: Vec<RenderState>,
+    state: Rc<RenderState>,
+    stack: Vec<Rc<RenderState>>,
 
     line: Vec<LineEntry>,
-    line_start_state: RenderState,
-    line_cur_state: RenderState,
+    line_start_state: Rc<RenderState>,
+    line_cur_state: Rc<RenderState>,
     line_width: usize,
 
     word: Vec<u8>,
@@ -57,14 +58,14 @@ struct RenderState {
 
 impl Renderer {
     pub fn new() -> Result<Self, io::Error> {
-        let state = RenderState {
+        let state = Rc::new(RenderState {
             flags: RenderFlags::NARROW,
             line_spacing: 24,
             red: false,
             unidirectional: false,
             strikethrough: false,
             justification: Justification::Left,
-        };
+        });
         let mut renderer = Renderer {
             state: state.clone(),
             stack: Vec::new(),
@@ -80,39 +81,45 @@ impl Renderer {
         Ok(renderer)
     }
 
-    pub fn set_flags(&mut self, flags: RenderFlags) -> Result<&mut Self, io::Error> {
+    fn new_state(&mut self) -> &mut RenderState {
         self.stack.push(self.state.clone());
-        self.state.flags |= flags;
+        self.state = Rc::new((*self.state).clone());
+        return Rc::get_mut(&mut self.state).unwrap();
+    }
+
+    pub fn set_flags(&mut self, flags: RenderFlags) -> Result<&mut Self, io::Error> {
+        let state = self.new_state();
+        state.flags |= flags;
         Ok(self)
     }
 
     pub fn clear_flags(&mut self, flags: RenderFlags) -> Result<&mut Self, io::Error> {
-        self.stack.push(self.state.clone());
-        self.state.flags &= !flags;
+        let state = self.new_state();
+        state.flags &= !flags;
         Ok(self)
     }
 
     pub fn set_line_spacing(&mut self, spacing: u8) -> Result<&mut Self, io::Error> {
-        self.stack.push(self.state.clone());
-        self.state.line_spacing = spacing;
+        let state = self.new_state();
+        state.line_spacing = spacing;
         Ok(self)
     }
 
     pub fn set_red(&mut self, red: bool) -> Result<&mut Self, io::Error> {
-        self.stack.push(self.state.clone());
-        self.state.red = red;
+        let state = self.new_state();
+        state.red = red;
         Ok(self)
     }
 
     pub fn set_unidirectional(&mut self, unidirectional: bool) -> Result<&mut Self, io::Error> {
-        self.stack.push(self.state.clone());
-        self.state.unidirectional = unidirectional;
+        let state = self.new_state();
+        state.unidirectional = unidirectional;
         Ok(self)
     }
 
     pub fn set_strikethrough(&mut self, strikethrough: bool) -> Result<&mut Self, io::Error> {
-        self.stack.push(self.state.clone());
-        self.state.strikethrough = strikethrough;
+        let state = self.new_state();
+        state.strikethrough = strikethrough;
         Ok(self)
     }
 
@@ -120,8 +127,8 @@ impl Renderer {
         &mut self,
         justification: Justification,
     ) -> Result<&mut Self, io::Error> {
-        self.stack.push(self.state.clone());
-        self.state.justification = justification;
+        let state = self.new_state();
+        state.justification = justification;
         Ok(self)
     }
 
@@ -280,16 +287,16 @@ impl Renderer {
             }
             let mut state = self.line_start_state.clone();
             let mut active = (pass.active)(&state);
-            self.set_printer_state(&(pass.state_map)(state.clone(), active))?;
+            self.set_printer_state(&(pass.state_map)((*state).clone(), active))?;
             for entry in self.line.clone().iter() {
                 match entry {
                     LineEntry::Char(c) => {
                         self.send(&(pass.char_map)(*c, &state, active))?;
                     }
                     LineEntry::State(new_state) => {
-                        state = new_state.clone();
+                        state = (*new_state).clone();
                         active = (pass.active)(&state);
-                        self.set_printer_state(&(pass.state_map)(state.clone(), active))?;
+                        self.set_printer_state(&(pass.state_map)((*state).clone(), active))?;
                     }
                 }
             }
