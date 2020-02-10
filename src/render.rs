@@ -65,7 +65,7 @@ impl Renderer {
             justification: Justification::Left,
         });
         let mut renderer = Renderer {
-            state: state,
+            state,
             stack: Vec::new(),
             line: Vec::new(),
             line_width: 0,
@@ -80,7 +80,7 @@ impl Renderer {
     fn new_state(&mut self) -> &mut RenderState {
         self.stack.push(self.state.clone());
         self.state = Rc::new((*self.state).clone());
-        return Rc::get_mut(&mut self.state).unwrap();
+        Rc::get_mut(&mut self.state).unwrap()
     }
 
     pub fn set_flags(&mut self, flags: RenderFlags) -> Result<&mut Self, io::Error> {
@@ -190,11 +190,13 @@ impl Renderer {
 
         // If we have a partial line and this word won't fit on it, start
         // a new line.
-        let mut soft_wrapped = false;
-        if width <= LINE_PIXELS_TEXT && self.line_width + width > LINE_PIXELS_TEXT {
-            self.send_line()?;
-            soft_wrapped = true;
-        }
+        let soft_wrapped =
+            if width <= LINE_PIXELS_TEXT && self.line_width + width > LINE_PIXELS_TEXT {
+                self.send_line()?;
+                true
+            } else {
+                false
+            };
 
         // Ignore spaces at the beginning of a soft-wrapped line, then
         // push the rest of the word.
