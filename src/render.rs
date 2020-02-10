@@ -242,28 +242,39 @@ impl Renderer {
         let width = image[0].len();
         let height = image.len();
 
+        // Flush line buffer if non-empty
+        if self.line_width > 0 {
+            self.send_line()?;
+        }
+
         // Enable unidirectional print mode for better alignment
         self.set_unidirectional(true)?;
         // Set line spacing to avoid gaps
         self.set_line_spacing(16)?;
         // Center on line
         self.set_justification(Justification::Center)?;
-        // We bypass the line buffer, so sync state directly to printer
-        self.set_printer_state(&self.state.clone())?;
 
         // Write code
         for yblock in 0..height / 8 {
-            let mut line = bit_image_prologue(width)?;
+            for byte in bit_image_prologue(width)? {
+                self.line.push(LineEntry {
+                    char: byte,
+                    state: self.state.clone(),
+                })
+            }
             for x in 0..width {
                 let mut byte: u8 = 0;
                 for row in image.iter().skip(yblock * 8).take(8) {
                     byte <<= 1;
                     byte |= row[x] as u8;
                 }
-                line.push(byte);
+                self.line.push(LineEntry {
+                    char: byte,
+                    state: self.state.clone(),
+                });
             }
-            self.send(&line)?;
-            self.send(b"\n")?;
+            self.line_width += width;
+            self.send_line()?;
         }
 
         // Restore print mode
