@@ -28,9 +28,9 @@ pub enum Justification {
 }
 
 #[derive(Clone)]
-enum LineEntry {
-    Char(u8),
-    State(Rc<RenderState>),
+struct LineEntry {
+    char: u8,
+    state: Rc<RenderState>,
 }
 
 pub struct Renderer {
@@ -38,11 +38,9 @@ pub struct Renderer {
     stack: Vec<Rc<RenderState>>,
 
     line: Vec<LineEntry>,
-    line_start_state: Rc<RenderState>,
-    line_cur_state: Rc<RenderState>,
     line_width: usize,
 
-    word: Vec<u8>,
+    word: Vec<LineEntry>,
     word_has_letters: bool,
 }
 
@@ -67,11 +65,9 @@ impl Renderer {
             justification: Justification::Left,
         });
         let mut renderer = Renderer {
-            state: state.clone(),
+            state: state,
             stack: Vec::new(),
             line: Vec::new(),
-            line_start_state: state.clone(),
-            line_cur_state: state,
             line_width: 0,
             word: Vec::new(),
             word_has_letters: false,
@@ -164,12 +160,6 @@ impl Renderer {
                 // Start a new word.
                 self.write_word()?;
             }
-            // Now any new chars in the word buffer will be in the current
-            // RenderState.  Sync it to the line buffer.
-            if self.state != self.line_cur_state {
-                self.line.push(LineEntry::State(self.state.clone()));
-                self.line_cur_state = self.state.clone();
-            }
             // Hard line break?  Send it and move on.
             if *byte == b'\n' {
                 self.send_line()?;
@@ -181,7 +171,10 @@ impl Renderer {
             }
             // Printables and spaces go in the word.  Once we have at
             // least one printable, the word becomes eligible for writing.
-            self.word.push(*byte);
+            self.word.push(LineEntry {
+                char: *byte,
+                state: self.state.clone(),
+            });
             if *byte != b' ' {
                 self.word_has_letters = true;
             }
@@ -190,8 +183,10 @@ impl Renderer {
     }
 
     fn write_word(&mut self) -> Result<(), io::Error> {
-        let char_width = self.line_cur_state.char_bounding_width();
-        let width = self.word.len() * char_width;
+        let width = self
+            .word
+            .iter()
+            .fold(0, |acc, entry| acc + entry.state.char_bounding_width());
 
         // If we have a partial line and this word won't fit on it, start
         // a new line.
@@ -203,19 +198,21 @@ impl Renderer {
 
         // Ignore spaces at the beginning of a soft-wrapped line, then
         // push the rest of the word.
-        for ch in self
+        for entry in self
             .word
             .clone()
-            .iter()
-            .filter(|ch| !soft_wrapped || **ch != b' ')
+            .drain(..)
+            .filter(|entry| !soft_wrapped || entry.char != b' ')
         {
+            let char_width = entry.state.char_bounding_width();
+
             // If we've reached the end of the line just within this word,
             // just break in the middle of the word.
             if self.line_width + char_width > LINE_PIXELS_TEXT {
                 self.send_line()?;
             }
 
-            self.line.push(LineEntry::Char(*ch));
+            self.line.push(entry);
             self.line_width += char_width;
         }
 
@@ -285,41 +282,32 @@ impl Renderer {
             if !self.active_for_line(pass) {
                 continue;
             }
-            let mut state = self.line_start_state.clone();
+            // active_for_line() returned true, so there is at least one entry
+            let mut state = self.line[0].state.clone();
             let mut active = (pass.active)(&state);
             self.set_printer_state(&(pass.state_map)((*state).clone(), active))?;
             for entry in self.line.clone().iter() {
-                match entry {
-                    LineEntry::Char(c) => {
-                        self.send(&(pass.char_map)(*c, &state, active))?;
-                    }
-                    LineEntry::State(new_state) => {
-                        state = (*new_state).clone();
-                        active = (pass.active)(&state);
-                        self.set_printer_state(&(pass.state_map)((*state).clone(), active))?;
-                    }
+                if *state != *entry.state {
+                    state = entry.state.clone();
+                    active = (pass.active)(&state);
+                    self.set_printer_state(&(pass.state_map)((*state).clone(), active))?;
                 }
+                self.send(&(pass.char_map)(entry.char, &state, active))?;
             }
             self.send(b"\r")?;
         }
         self.send(b"\n")?;
 
         self.line.clear();
-        self.line_start_state = self.line_cur_state.clone();
         self.line_width = 0;
 
         Ok(())
     }
 
     fn active_for_line(&self, pass: &LinePass) -> bool {
-        if (pass.active)(&self.line_start_state) {
-            return true;
-        }
         for entry in self.line.iter() {
-            if let LineEntry::State(state) = entry {
-                if (pass.active)(state) {
-                    return true;
-                }
+            if (pass.active)(&entry.state) {
+                return true;
             }
         }
         false
