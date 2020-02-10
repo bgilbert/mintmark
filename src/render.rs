@@ -85,63 +85,60 @@ impl Renderer {
         Rc::get_mut(&mut self.state).unwrap()
     }
 
-    pub fn set_flags(&mut self, flags: RenderFlags) -> Result<&mut Self, io::Error> {
+    pub fn set_flags(&mut self, flags: RenderFlags) -> &mut Self {
         let state = self.new_state();
         state.flags |= flags;
-        Ok(self)
+        self
     }
 
-    pub fn clear_flags(&mut self, flags: RenderFlags) -> Result<&mut Self, io::Error> {
+    pub fn clear_flags(&mut self, flags: RenderFlags) -> &mut Self {
         let state = self.new_state();
         state.flags &= !flags;
-        Ok(self)
+        self
     }
 
-    pub fn set_line_spacing(&mut self, spacing: u8) -> Result<&mut Self, io::Error> {
+    pub fn set_line_spacing(&mut self, spacing: u8) -> &mut Self {
         let state = self.new_state();
         state.line_spacing = spacing;
-        Ok(self)
+        self
     }
 
-    pub fn add_indent(&mut self, indent: usize) -> Result<&mut Self, io::Error> {
+    pub fn add_indent(&mut self, indent: usize) -> &mut Self {
         let state = self.new_state();
         state.indent += indent;
-        Ok(self)
+        self
     }
 
-    pub fn set_red(&mut self, red: bool) -> Result<&mut Self, io::Error> {
+    pub fn set_red(&mut self, red: bool) -> &mut Self {
         let state = self.new_state();
         state.red = red;
-        Ok(self)
+        self
     }
 
-    pub fn set_unidirectional(&mut self, unidirectional: bool) -> Result<&mut Self, io::Error> {
+    pub fn set_unidirectional(&mut self, unidirectional: bool) -> &mut Self {
         let state = self.new_state();
         state.unidirectional = unidirectional;
-        Ok(self)
+        self
     }
 
-    pub fn set_strikethrough(&mut self, strikethrough: bool) -> Result<&mut Self, io::Error> {
+    pub fn set_strikethrough(&mut self, strikethrough: bool) -> &mut Self {
         let state = self.new_state();
         state.strikethrough = strikethrough;
-        Ok(self)
+        self
     }
 
-    pub fn set_justification(
-        &mut self,
-        justification: Justification,
-    ) -> Result<&mut Self, io::Error> {
+    pub fn set_justification(&mut self, justification: Justification) -> &mut Self {
         let state = self.new_state();
         state.justification = justification;
-        Ok(self)
+        self
     }
 
-    pub fn restore(&mut self) -> Result<&mut Self, io::Error> {
+    pub fn restore(&mut self) -> &mut Self {
         self.state = self
             .stack
             .pop()
             .expect("tried to unwind the root RenderState");
-        Ok(self)
+        self
     }
 
     fn set_printer_state(&mut self, state: &RenderState) -> Result<(), io::Error> {
@@ -269,11 +266,11 @@ impl Renderer {
         }
 
         // Enable unidirectional print mode for better alignment
-        self.set_unidirectional(true)?;
+        self.set_unidirectional(true);
         // Set line spacing to avoid gaps
-        self.set_line_spacing(16)?;
+        self.set_line_spacing(16);
         // Center on line
-        self.set_justification(Justification::Center)?;
+        self.set_justification(Justification::Center);
 
         // Write code
         for yblock in 0..height / 8 {
@@ -299,7 +296,7 @@ impl Renderer {
         }
 
         // Restore print mode
-        self.restore()?.restore()?.restore()?;
+        self.restore().restore().restore();
 
         Ok(())
     }

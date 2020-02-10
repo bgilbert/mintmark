@@ -24,51 +24,51 @@ fn main() -> Result<(), io::Error> {
                         // Center first.  This only takes effect at the
                         // start of the line, so end tag handling needs to
                         // specially account for it.
-                        renderer.set_justification(Justification::Center)?;
+                        renderer.set_justification(Justification::Center);
                         match size {
                             1 => {
-                                renderer.set_unidirectional(true)?.set_flags(
+                                renderer.set_unidirectional(true).set_flags(
                                     RenderFlags::DOUBLE_HEIGHT
                                         | RenderFlags::DOUBLE_WIDTH
                                         | RenderFlags::EMPHASIZED
                                         | RenderFlags::UNDERLINE,
-                                )?;
+                                );
                             }
                             2 => {
-                                renderer.set_unidirectional(true)?.set_flags(
+                                renderer.set_unidirectional(true).set_flags(
                                     RenderFlags::DOUBLE_HEIGHT
                                         | RenderFlags::DOUBLE_WIDTH
                                         | RenderFlags::EMPHASIZED,
-                                )?;
+                                );
                             }
                             3 => {
                                 renderer
-                                    .set_flags(RenderFlags::EMPHASIZED | RenderFlags::UNDERLINE)?
-                                    .clear_flags(RenderFlags::NARROW)?;
+                                    .set_flags(RenderFlags::EMPHASIZED | RenderFlags::UNDERLINE)
+                                    .clear_flags(RenderFlags::NARROW);
                             }
                             4 => {
                                 renderer
-                                    .set_flags(RenderFlags::EMPHASIZED)?
-                                    .clear_flags(RenderFlags::NARROW)?;
+                                    .set_flags(RenderFlags::EMPHASIZED)
+                                    .clear_flags(RenderFlags::NARROW);
                             }
                             5 => {
                                 renderer
-                                    .set_flags(RenderFlags::EMPHASIZED | RenderFlags::UNDERLINE)?;
+                                    .set_flags(RenderFlags::EMPHASIZED | RenderFlags::UNDERLINE);
                             }
                             _ => {
-                                renderer.set_flags(RenderFlags::EMPHASIZED)?;
+                                renderer.set_flags(RenderFlags::EMPHASIZED);
                             }
                         }
                     }
                     Tag::BlockQuote => {
-                        renderer.add_indent(4)?;
+                        renderer.add_indent(4);
                     }
                     Tag::CodeBlock(format) => match format.into_string().as_str() {
                         "qrcode" => {
                             in_qr_code += 1;
                         }
                         _ => {
-                            renderer.set_red(true)?;
+                            renderer.set_red(true);
                         }
                     },
                     Tag::List(_first_item_number) => {}
@@ -81,13 +81,13 @@ fn main() -> Result<(), io::Error> {
                     Tag::TableRow => {}
                     Tag::TableCell => {}
                     Tag::Emphasis => {
-                        renderer.set_flags(RenderFlags::UNDERLINE)?;
+                        renderer.set_flags(RenderFlags::UNDERLINE);
                     }
                     Tag::Strong => {
-                        renderer.set_flags(RenderFlags::EMPHASIZED)?;
+                        renderer.set_flags(RenderFlags::EMPHASIZED);
                     }
                     Tag::Strikethrough => {
-                        renderer.set_strikethrough(true)?;
+                        renderer.set_strikethrough(true);
                     }
                     Tag::Link(_, _, _) => {}
                     Tag::Image(_, _, _) => {}
@@ -101,26 +101,26 @@ fn main() -> Result<(), io::Error> {
                     // peel off everything but the centering command
                     match size {
                         1 | 2 | 3 | 4 => {
-                            renderer.restore()?.restore()?;
+                            renderer.restore().restore();
                         }
                         5 | _ => {
-                            renderer.restore()?;
+                            renderer.restore();
                         }
                     }
                     renderer.write("\n\n")?;
                     // peel off the centering command now that we're at
                     // the start of a line
-                    renderer.restore()?;
+                    renderer.restore();
                 }
                 Tag::BlockQuote => {
-                    renderer.restore()?;
+                    renderer.restore();
                 }
                 Tag::CodeBlock(format) => match format.into_string().as_str() {
                     "qrcode" => {
                         in_qr_code -= 1;
                     }
                     _ => {
-                        renderer.restore()?;
+                        renderer.restore();
                     }
                 },
                 Tag::List(_first_item_number) => {
@@ -135,13 +135,13 @@ fn main() -> Result<(), io::Error> {
                 Tag::TableRow => {}
                 Tag::TableCell => {}
                 Tag::Emphasis => {
-                    renderer.restore()?;
+                    renderer.restore();
                 }
                 Tag::Strong => {
-                    renderer.restore()?;
+                    renderer.restore();
                 }
                 Tag::Strikethrough => {
-                    renderer.restore()?;
+                    renderer.restore();
                 }
                 Tag::Link(_, _, _) => {}
                 Tag::Image(_, _, _) => {}
@@ -154,9 +154,9 @@ fn main() -> Result<(), io::Error> {
                 }
             }
             Event::Code(contents) => {
-                renderer.set_red(true)?;
+                renderer.set_red(true);
                 renderer.write(&contents)?;
-                renderer.restore()?;
+                renderer.restore();
             }
             Event::Html(_e) => {}
             Event::FootnoteReference(_e) => {}
