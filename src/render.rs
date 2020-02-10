@@ -48,6 +48,7 @@ pub struct Renderer {
 struct RenderState {
     flags: RenderFlags,
     line_spacing: u8,
+    indent: usize,
     red: bool,
     unidirectional: bool,
     strikethrough: bool,
@@ -59,6 +60,7 @@ impl Renderer {
         let state = Rc::new(RenderState {
             flags: RenderFlags::NARROW,
             line_spacing: 24,
+            indent: 0,
             red: false,
             unidirectional: false,
             strikethrough: false,
@@ -98,6 +100,12 @@ impl Renderer {
     pub fn set_line_spacing(&mut self, spacing: u8) -> Result<&mut Self, io::Error> {
         let state = self.new_state();
         state.line_spacing = spacing;
+        Ok(self)
+    }
+
+    pub fn add_indent(&mut self, indent: usize) -> Result<&mut Self, io::Error> {
+        let state = self.new_state();
+        state.indent += indent;
         Ok(self)
     }
 
@@ -212,6 +220,17 @@ impl Renderer {
             // just break in the middle of the word.
             if self.line_width + char_width > LINE_PIXELS_TEXT {
                 self.send_line()?;
+            }
+
+            // Add indent if at the beginning of the line
+            if self.line_width == 0 {
+                for _ in 0..entry.state.indent {
+                    self.line.push(LineEntry {
+                        char: b' ',
+                        state: entry.state.clone(),
+                    })
+                }
+                self.line_width += entry.state.indent * char_width;
             }
 
             self.line.push(entry);

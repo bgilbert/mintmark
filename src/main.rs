@@ -60,7 +60,9 @@ fn main() -> Result<(), io::Error> {
                             }
                         }
                     }
-                    Tag::BlockQuote => {}
+                    Tag::BlockQuote => {
+                        renderer.add_indent(4)?;
+                    }
                     Tag::CodeBlock(format) => match format.into_string().as_str() {
                         "qrcode" => {
                             in_qr_code += 1;
@@ -110,7 +112,9 @@ fn main() -> Result<(), io::Error> {
                     // the start of a line
                     renderer.restore()?;
                 }
-                Tag::BlockQuote => {}
+                Tag::BlockQuote => {
+                    renderer.restore()?;
+                }
                 Tag::CodeBlock(format) => match format.into_string().as_str() {
                     "qrcode" => {
                         in_qr_code -= 1;

@@ -16,6 +16,7 @@ target/debug/mintmark < input.md > /dev/usb/lp0
 - Unordered lists
 - Inline code and code blocks, rendered as red
 - Strikethrough
+- Blockquotes, rendered as indent
 - Horizontal rules, rendered by cutting the paper
 - QR codes, specified as code blocks with the `qrcode` language identifier
 
@@ -24,7 +25,6 @@ target/debug/mintmark < input.md > /dev/usb/lp0
 - Ordered lists (rendered as unordered)
 - Images (rendered as the alt text)
 - Links (rendered as the link text)
-- Blockquotes (rendered as plain text)
 - Tables
 - Footnotes
 - Definition lists
