@@ -30,12 +30,12 @@ pub enum Justification {
 #[derive(Clone)]
 struct LineEntry {
     char: u8,
-    state: Rc<RenderState>,
+    format: Rc<Format>,
 }
 
 pub struct Renderer {
-    state: Rc<RenderState>,
-    stack: Vec<Rc<RenderState>>,
+    format: Rc<Format>,
+    stack: Vec<Rc<Format>>,
 
     line: Vec<LineEntry>,
     line_width: usize,
@@ -45,7 +45,7 @@ pub struct Renderer {
 }
 
 #[derive(Clone, Eq, PartialEq)]
-struct RenderState {
+struct Format {
     flags: RenderFlags,
     line_spacing: u8,
     indent: usize,
@@ -57,7 +57,7 @@ struct RenderState {
 
 impl Renderer {
     pub fn new() -> Result<Self, io::Error> {
-        let state = Rc::new(RenderState {
+        let format = Rc::new(Format {
             flags: RenderFlags::NARROW,
             line_spacing: 24,
             indent: 0,
@@ -67,7 +67,7 @@ impl Renderer {
             justification: Justification::Left,
         });
         let mut renderer = Renderer {
-            state,
+            format,
             stack: Vec::new(),
             line: Vec::new(),
             line_width: 0,
@@ -79,79 +79,76 @@ impl Renderer {
         Ok(renderer)
     }
 
-    fn new_state(&mut self) -> &mut RenderState {
-        self.stack.push(self.state.clone());
-        self.state = Rc::new((*self.state).clone());
-        Rc::get_mut(&mut self.state).unwrap()
+    fn new_format(&mut self) -> &mut Format {
+        self.stack.push(self.format.clone());
+        self.format = Rc::new((*self.format).clone());
+        Rc::get_mut(&mut self.format).unwrap()
     }
 
     pub fn set_flags(&mut self, flags: RenderFlags) -> &mut Self {
-        let state = self.new_state();
-        state.flags |= flags;
+        let format = self.new_format();
+        format.flags |= flags;
         self
     }
 
     pub fn clear_flags(&mut self, flags: RenderFlags) -> &mut Self {
-        let state = self.new_state();
-        state.flags &= !flags;
+        let format = self.new_format();
+        format.flags &= !flags;
         self
     }
 
     pub fn set_line_spacing(&mut self, spacing: u8) -> &mut Self {
-        let state = self.new_state();
-        state.line_spacing = spacing;
+        let format = self.new_format();
+        format.line_spacing = spacing;
         self
     }
 
     pub fn add_indent(&mut self, indent: usize) -> &mut Self {
-        let state = self.new_state();
-        state.indent += indent;
+        let format = self.new_format();
+        format.indent += indent;
         self
     }
 
     pub fn set_red(&mut self, red: bool) -> &mut Self {
-        let state = self.new_state();
-        state.red = red;
+        let format = self.new_format();
+        format.red = red;
         self
     }
 
     pub fn set_unidirectional(&mut self, unidirectional: bool) -> &mut Self {
-        let state = self.new_state();
-        state.unidirectional = unidirectional;
+        let format = self.new_format();
+        format.unidirectional = unidirectional;
         self
     }
 
     pub fn set_strikethrough(&mut self, strikethrough: bool) -> &mut Self {
-        let state = self.new_state();
-        state.strikethrough = strikethrough;
+        let format = self.new_format();
+        format.strikethrough = strikethrough;
         self
     }
 
     pub fn set_justification(&mut self, justification: Justification) -> &mut Self {
-        let state = self.new_state();
-        state.justification = justification;
+        let format = self.new_format();
+        format.justification = justification;
         self
     }
 
     pub fn restore(&mut self) -> &mut Self {
-        self.state = self
-            .stack
-            .pop()
-            .expect("tried to unwind the root RenderState");
+        self.format = self.stack.pop().expect("tried to unwind the root Format");
         self
     }
 
-    fn set_printer_state(&mut self, state: &RenderState) -> Result<(), io::Error> {
+    fn set_printer_format(&mut self, format: &Format) -> Result<(), io::Error> {
         self.send(b"\x1b!")?;
-        self.send(&[state.flags.bits])?;
+        self.send(&[format.flags.bits])?;
         self.send(b"\x1b3")?;
-        self.send(&[state.line_spacing])?;
+        self.send(&[format.line_spacing])?;
         self.send(b"\x1br")?;
-        self.send(&[state.red as u8])?;
+        self.send(&[format.red as u8])?;
         self.send(b"\x1bU")?;
-        self.send(&[state.unidirectional as u8])?;
+        self.send(&[format.unidirectional as u8])?;
         self.send(b"\x1ba")?;
-        self.send(&[state.justification as u8])?;
+        self.send(&[format.justification as u8])?;
         Ok(())
     }
 
@@ -178,7 +175,7 @@ impl Renderer {
             // least one printable, the word becomes eligible for writing.
             self.word.push(LineEntry {
                 char: *byte,
-                state: self.state.clone(),
+                format: self.format.clone(),
             });
             if *byte != b' ' {
                 self.word_has_letters = true;
@@ -191,7 +188,7 @@ impl Renderer {
         let width = self
             .word
             .iter()
-            .fold(0, |acc, entry| acc + entry.state.char_bounding_width());
+            .fold(0, |acc, entry| acc + entry.format.char_bounding_width());
 
         // If we have a partial line and this word won't fit on it, start
         // a new line.
@@ -211,7 +208,7 @@ impl Renderer {
             .drain(..)
             .filter(|entry| !soft_wrapped || entry.char != b' ')
         {
-            let char_width = entry.state.char_bounding_width();
+            let char_width = entry.format.char_bounding_width();
 
             // If we've reached the end of the line just within this word,
             // just break in the middle of the word.
@@ -221,13 +218,13 @@ impl Renderer {
 
             // Add indent if at the beginning of the line
             if self.line_width == 0 {
-                for _ in 0..entry.state.indent {
+                for _ in 0..entry.format.indent {
                     self.line.push(LineEntry {
                         char: b' ',
-                        state: entry.state.clone(),
+                        format: entry.format.clone(),
                     })
                 }
-                self.line_width += entry.state.indent * char_width;
+                self.line_width += entry.format.indent * char_width;
             }
 
             self.line.push(entry);
@@ -277,7 +274,7 @@ impl Renderer {
             for byte in bit_image_prologue(width)? {
                 self.line.push(LineEntry {
                     char: byte,
-                    state: self.state.clone(),
+                    format: self.format.clone(),
                 })
             }
             for x in 0..width {
@@ -288,7 +285,7 @@ impl Renderer {
                 }
                 self.line.push(LineEntry {
                     char: byte,
-                    state: self.state.clone(),
+                    format: self.format.clone(),
                 });
             }
             self.line_width += width;
@@ -312,16 +309,16 @@ impl Renderer {
                 continue;
             }
             // active_for_line() returned true, so there is at least one entry
-            let mut state = self.line[0].state.clone();
-            let mut active = (pass.active)(&state);
-            self.set_printer_state(&(pass.state_map)((*state).clone(), active))?;
+            let mut format = self.line[0].format.clone();
+            let mut active = (pass.active)(&format);
+            self.set_printer_format(&(pass.format_map)((*format).clone(), active))?;
             for entry in self.line.clone().iter() {
-                if *state != *entry.state {
-                    state = entry.state.clone();
-                    active = (pass.active)(&state);
-                    self.set_printer_state(&(pass.state_map)((*state).clone(), active))?;
+                if *format != *entry.format {
+                    format = entry.format.clone();
+                    active = (pass.active)(&format);
+                    self.set_printer_format(&(pass.format_map)((*format).clone(), active))?;
                 }
-                self.send(&(pass.char_map)(entry.char, &state, active))?;
+                self.send(&(pass.char_map)(entry.char, &format, active))?;
             }
             self.send(b"\r")?;
         }
@@ -335,7 +332,7 @@ impl Renderer {
 
     fn active_for_line(&self, pass: &LinePass) -> bool {
         for entry in self.line.iter() {
-            if (pass.active)(&entry.state) {
+            if (pass.active)(&entry.format) {
                 return true;
             }
         }
@@ -347,7 +344,7 @@ impl Renderer {
     }
 }
 
-impl RenderState {
+impl Format {
     fn char_bounding_width(&self) -> usize {
         let mut width: usize = if !(self.flags & RenderFlags::NARROW).is_empty() {
             8
@@ -390,14 +387,14 @@ fn bit_image_prologue(width: usize) -> Result<Vec<u8>, io::Error> {
 struct LinePass {
     #[allow(dead_code)]
     name: &'static str,
-    active: fn(state: &RenderState) -> bool,
-    state_map: fn(state: RenderState, active: bool) -> RenderState,
-    char_map: fn(char: u8, state: &RenderState, active: bool) -> Vec<u8>,
+    active: fn(format: &Format) -> bool,
+    format_map: fn(format: Format, active: bool) -> Format,
+    char_map: fn(char: u8, format: &Format, active: bool) -> Vec<u8>,
 }
 
-fn strikethrough_char_map(_char: u8, state: &RenderState, active: bool) -> Vec<u8> {
+fn strikethrough_char_map(_char: u8, format: &Format, active: bool) -> Vec<u8> {
     if active {
-        let char_width = state.char_overstrike_width();
+        let char_width = format.char_overstrike_width();
         let mut ret = bit_image_prologue(char_width).expect("overstrike width larger than u16");
         for _ in 0..char_width {
             ret.push(0x08);
@@ -411,49 +408,49 @@ fn strikethrough_char_map(_char: u8, state: &RenderState, active: bool) -> Vec<u
 static PASSES: [LinePass; 4] = [
     LinePass {
         name: "black",
-        active: |state| !state.red,
-        state_map: |mut state, active| {
+        active: |format| !format.red,
+        format_map: |mut format, active| {
             if !active {
-                state.red = false;
-                state.flags &= !RenderFlags::UNDERLINE
+                format.red = false;
+                format.flags &= !RenderFlags::UNDERLINE
             };
-            state
+            format
         },
-        char_map: |char, _state, active| if active { vec![char] } else { vec![b' '] },
+        char_map: |char, _format, active| if active { vec![char] } else { vec![b' '] },
     },
     LinePass {
         name: "black strikethrough",
-        active: |state| !state.red && state.strikethrough,
-        state_map: |mut state, active| {
+        active: |format| !format.red && format.strikethrough,
+        format_map: |mut format, active| {
             if !active {
-                state.red = false;
-                state.flags &= !RenderFlags::UNDERLINE
+                format.red = false;
+                format.flags &= !RenderFlags::UNDERLINE
             };
-            state
+            format
         },
         char_map: strikethrough_char_map,
     },
     LinePass {
         name: "red",
-        active: |state| state.red,
-        state_map: |mut state, active| {
+        active: |format| format.red,
+        format_map: |mut format, active| {
             if !active {
-                state.red = true;
-                state.flags &= !RenderFlags::UNDERLINE
+                format.red = true;
+                format.flags &= !RenderFlags::UNDERLINE
             };
-            state
+            format
         },
-        char_map: |char, _state, active| if active { vec![char] } else { vec![b' '] },
+        char_map: |char, _format, active| if active { vec![char] } else { vec![b' '] },
     },
     LinePass {
         name: "red strikethrough",
-        active: |state| state.red && state.strikethrough,
-        state_map: |mut state, active| {
+        active: |format| format.red && format.strikethrough,
+        format_map: |mut format, active| {
             if !active {
-                state.red = true;
-                state.flags &= !RenderFlags::UNDERLINE
+                format.red = true;
+                format.flags &= !RenderFlags::UNDERLINE
             };
-            state
+            format
         },
         char_map: strikethrough_char_map,
     },
