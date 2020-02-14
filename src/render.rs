@@ -9,6 +9,28 @@ use std::rc::Rc;
 const LINE_PIXELS_IMAGE: usize = 200;
 const LINE_PIXELS_TEXT: usize = 320;
 
+pub struct Renderer {
+    format: Rc<Format>,
+    stack: Vec<Rc<Format>>,
+
+    line: Vec<LineChar>,
+    line_width: usize,
+
+    word: Vec<LineChar>,
+    word_has_letters: bool,
+}
+
+#[derive(Clone, Eq, PartialEq)]
+pub struct Format {
+    flags: FormatFlags,
+    line_spacing: u8,
+    indent: usize,
+    red: bool,
+    unidirectional: bool,
+    strikethrough: bool,
+    justification: Justification,
+}
+
 bitflags! {
     pub struct FormatFlags: u8 {
         const NARROW = 0x01;
@@ -31,28 +53,6 @@ pub enum Justification {
 struct LineChar {
     char: u8,
     format: Rc<Format>,
-}
-
-pub struct Renderer {
-    format: Rc<Format>,
-    stack: Vec<Rc<Format>>,
-
-    line: Vec<LineChar>,
-    line_width: usize,
-
-    word: Vec<LineChar>,
-    word_has_letters: bool,
-}
-
-#[derive(Clone, Eq, PartialEq)]
-pub struct Format {
-    flags: FormatFlags,
-    line_spacing: u8,
-    indent: usize,
-    red: bool,
-    unidirectional: bool,
-    strikethrough: bool,
-    justification: Justification,
 }
 
 impl Renderer {
