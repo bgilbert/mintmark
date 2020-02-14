@@ -28,7 +28,7 @@ pub enum Justification {
 }
 
 #[derive(Clone)]
-struct LineEntry {
+struct LineChar {
     char: u8,
     format: Rc<Format>,
 }
@@ -37,10 +37,10 @@ pub struct Renderer {
     format: Rc<Format>,
     stack: Vec<Rc<Format>>,
 
-    line: Vec<LineEntry>,
+    line: Vec<LineChar>,
     line_width: usize,
 
-    word: Vec<LineEntry>,
+    word: Vec<LineChar>,
     word_has_letters: bool,
 }
 
@@ -173,7 +173,7 @@ impl Renderer {
             }
             // Printables and spaces go in the word.  Once we have at
             // least one printable, the word becomes eligible for writing.
-            self.word.push(LineEntry {
+            self.word.push(LineChar {
                 char: *byte,
                 format: self.format.clone(),
             });
@@ -188,7 +188,7 @@ impl Renderer {
         let width = self
             .word
             .iter()
-            .fold(0, |acc, entry| acc + entry.format.char_bounding_width());
+            .fold(0, |acc, lc| acc + lc.format.char_bounding_width());
 
         // If we have a partial line and this word won't fit on it, start
         // a new line.
@@ -202,13 +202,13 @@ impl Renderer {
 
         // Ignore spaces at the beginning of a soft-wrapped line, then
         // push the rest of the word.
-        for entry in self
+        for lc in self
             .word
             .clone()
             .drain(..)
-            .filter(|entry| !soft_wrapped || entry.char != b' ')
+            .filter(|lc| !soft_wrapped || lc.char != b' ')
         {
-            let char_width = entry.format.char_bounding_width();
+            let char_width = lc.format.char_bounding_width();
 
             // If we've reached the end of the line just within this word,
             // just break in the middle of the word.
@@ -218,16 +218,16 @@ impl Renderer {
 
             // Add indent if at the beginning of the line
             if self.line_width == 0 {
-                for _ in 0..entry.format.indent {
-                    self.line.push(LineEntry {
+                for _ in 0..lc.format.indent {
+                    self.line.push(LineChar {
                         char: b' ',
-                        format: entry.format.clone(),
+                        format: lc.format.clone(),
                     })
                 }
-                self.line_width += entry.format.indent * char_width;
+                self.line_width += lc.format.indent * char_width;
             }
 
-            self.line.push(entry);
+            self.line.push(lc);
             self.line_width += char_width;
         }
 
@@ -272,7 +272,7 @@ impl Renderer {
         // Write code
         for yblock in 0..height / 8 {
             for byte in bit_image_prologue(width)? {
-                self.line.push(LineEntry {
+                self.line.push(LineChar {
                     char: byte,
                     format: self.format.clone(),
                 })
@@ -283,7 +283,7 @@ impl Renderer {
                     byte <<= 1;
                     byte |= row[x] as u8;
                 }
-                self.line.push(LineEntry {
+                self.line.push(LineChar {
                     char: byte,
                     format: self.format.clone(),
                 });
@@ -308,17 +308,17 @@ impl Renderer {
             if !self.active_for_line(pass) {
                 continue;
             }
-            // active_for_line() returned true, so there is at least one entry
+            // active_for_line() returned true, so there is at least one LineChar
             let mut format = self.line[0].format.clone();
             let mut active = (pass.active)(&format);
             self.set_printer_format(&(pass.format_map)((*format).clone(), active))?;
-            for entry in self.line.clone().iter() {
-                if *format != *entry.format {
-                    format = entry.format.clone();
+            for lc in self.line.clone().iter() {
+                if *format != *lc.format {
+                    format = lc.format.clone();
                     active = (pass.active)(&format);
                     self.set_printer_format(&(pass.format_map)((*format).clone(), active))?;
                 }
-                self.send(&(pass.char_map)(entry.char, &format, active))?;
+                self.send(&(pass.char_map)(lc.char, &format, active))?;
             }
             self.send(b"\r")?;
         }
@@ -331,8 +331,8 @@ impl Renderer {
     }
 
     fn active_for_line(&self, pass: &LinePass) -> bool {
-        for entry in self.line.iter() {
-            if (pass.active)(&entry.format) {
+        for lc in self.line.iter() {
+            if (pass.active)(&lc.format) {
                 return true;
             }
         }
