@@ -15,6 +15,7 @@ fn main() -> Result<(), io::Error> {
 
     let mut renderer = Renderer::new()?;
     let mut in_qr_code: u32 = 0;
+    let mut lists: Vec<Option<u64>> = Vec::new();
     for (event, _) in parser.into_offset_iter() {
         match event {
             Event::Start(tag) => {
@@ -71,10 +72,23 @@ fn main() -> Result<(), io::Error> {
                             renderer.set_red(true);
                         }
                     },
-                    Tag::List(_first_item_number) => {}
+                    Tag::List(first_item_number) => {
+                        lists.push(first_item_number);
+                    }
                     Tag::Item => {
-                        renderer.write("  - ")?;
-                        renderer.add_indent(4);
+                        let item = lists.last_mut().expect("non-empty list list");
+                        match *item {
+                            Some(n) => {
+                                let marker = format!("{:2}. ", n);
+                                renderer.write(&marker)?;
+                                renderer.add_indent(marker.len());
+                                *item.as_mut().unwrap() += 1;
+                            }
+                            None => {
+                                renderer.write("  - ")?;
+                                renderer.add_indent(4);
+                            }
+                        }
                     }
                     Tag::FootnoteDefinition(_s) => {}
                     Tag::Table(_alignments) => {}
@@ -125,6 +139,7 @@ fn main() -> Result<(), io::Error> {
                     }
                 },
                 Tag::List(_first_item_number) => {
+                    lists.pop();
                     renderer.write("\n")?;
                 }
                 Tag::Item => {

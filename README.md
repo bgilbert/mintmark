@@ -13,7 +13,7 @@ target/debug/mintmark < input.md > /dev/usb/lp0
 - 6 distinct heading types, all centered
 - Bold, rendered as double-strike
 - Italic, rendered as underline
-- Unordered lists
+- Ordered and unordered lists
 - Inline code and code blocks, rendered as red
 - Strikethrough
 - Blockquotes, rendered as indent
@@ -22,7 +22,6 @@ target/debug/mintmark < input.md > /dev/usb/lp0
 
 ## Missing and non-features
 
-- Ordered lists (rendered as unordered)
 - Images (rendered as the alt text)
 - Links (rendered as the link text)
 - Tables
