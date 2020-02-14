@@ -45,7 +45,7 @@ pub struct Renderer {
 }
 
 #[derive(Clone, Eq, PartialEq)]
-struct Format {
+pub struct Format {
     flags: FormatFlags,
     line_spacing: u8,
     indent: usize,
@@ -57,17 +57,8 @@ struct Format {
 
 impl Renderer {
     pub fn new() -> Result<Self, io::Error> {
-        let format = Rc::new(Format {
-            flags: FormatFlags::NARROW,
-            line_spacing: 24,
-            indent: 0,
-            red: false,
-            unidirectional: false,
-            strikethrough: false,
-            justification: Justification::Left,
-        });
         let mut renderer = Renderer {
-            format,
+            format: Format::new(),
             stack: Vec::new(),
             line: Vec::new(),
             line_width: 0,
@@ -79,63 +70,17 @@ impl Renderer {
         Ok(renderer)
     }
 
-    fn new_format(&mut self) -> &mut Format {
+    pub fn format(&self) -> Rc<Format> {
+        self.format.clone()
+    }
+
+    pub fn set_format(&mut self, format: Rc<Format>) {
         self.stack.push(self.format.clone());
-        self.format = Rc::new((*self.format).clone());
-        Rc::get_mut(&mut self.format).unwrap()
+        self.format = format;
     }
 
-    pub fn set_flags(&mut self, flags: FormatFlags) -> &mut Self {
-        let format = self.new_format();
-        format.flags |= flags;
-        self
-    }
-
-    pub fn clear_flags(&mut self, flags: FormatFlags) -> &mut Self {
-        let format = self.new_format();
-        format.flags &= !flags;
-        self
-    }
-
-    pub fn set_line_spacing(&mut self, spacing: u8) -> &mut Self {
-        let format = self.new_format();
-        format.line_spacing = spacing;
-        self
-    }
-
-    pub fn add_indent(&mut self, indent: usize) -> &mut Self {
-        let format = self.new_format();
-        format.indent += indent;
-        self
-    }
-
-    pub fn set_red(&mut self, red: bool) -> &mut Self {
-        let format = self.new_format();
-        format.red = red;
-        self
-    }
-
-    pub fn set_unidirectional(&mut self, unidirectional: bool) -> &mut Self {
-        let format = self.new_format();
-        format.unidirectional = unidirectional;
-        self
-    }
-
-    pub fn set_strikethrough(&mut self, strikethrough: bool) -> &mut Self {
-        let format = self.new_format();
-        format.strikethrough = strikethrough;
-        self
-    }
-
-    pub fn set_justification(&mut self, justification: Justification) -> &mut Self {
-        let format = self.new_format();
-        format.justification = justification;
-        self
-    }
-
-    pub fn restore(&mut self) -> &mut Self {
+    pub fn restore_format(&mut self) {
         self.format = self.stack.pop().expect("tried to unwind the root Format");
-        self
     }
 
     fn set_printer_format(&mut self, format: &Format) -> Result<(), io::Error> {
@@ -262,12 +207,15 @@ impl Renderer {
             self.send_line()?;
         }
 
-        // Enable unidirectional print mode for better alignment
-        self.set_unidirectional(true);
-        // Set line spacing to avoid gaps
-        self.set_line_spacing(16);
-        // Center on line
-        self.set_justification(Justification::Center);
+        self.set_format(
+            self.format()
+                // Enable unidirectional print mode for better alignment
+                .with_unidirectional(true)
+                // Set line spacing to avoid gaps
+                .with_line_spacing(16)
+                // Center on line
+                .with_justification(Justification::Center),
+        );
 
         // Write code
         for yblock in 0..height / 8 {
@@ -293,7 +241,7 @@ impl Renderer {
         }
 
         // Restore print mode
-        self.restore().restore().restore();
+        self.restore_format();
 
         Ok(())
     }
@@ -345,6 +293,66 @@ impl Renderer {
 }
 
 impl Format {
+    pub fn new() -> Rc<Self> {
+        Rc::new(Self {
+            flags: FormatFlags::NARROW,
+            line_spacing: 24,
+            indent: 0,
+            red: false,
+            unidirectional: false,
+            strikethrough: false,
+            justification: Justification::Left,
+        })
+    }
+
+    pub fn with_flags(&self, flags: FormatFlags) -> Rc<Self> {
+        let mut format = self.clone();
+        format.flags |= flags;
+        Rc::new(format)
+    }
+
+    pub fn without_flags(&self, flags: FormatFlags) -> Rc<Self> {
+        let mut format = self.clone();
+        format.flags &= !flags;
+        Rc::new(format)
+    }
+
+    pub fn with_line_spacing(&self, spacing: u8) -> Rc<Self> {
+        let mut format = self.clone();
+        format.line_spacing = spacing;
+        Rc::new(format)
+    }
+
+    pub fn with_added_indent(&self, indent: usize) -> Rc<Self> {
+        let mut format = self.clone();
+        format.indent += indent;
+        Rc::new(format)
+    }
+
+    pub fn with_red(&self, red: bool) -> Rc<Self> {
+        let mut format = self.clone();
+        format.red = red;
+        Rc::new(format)
+    }
+
+    pub fn with_unidirectional(&self, unidirectional: bool) -> Rc<Self> {
+        let mut format = self.clone();
+        format.unidirectional = unidirectional;
+        Rc::new(format)
+    }
+
+    pub fn with_strikethrough(&self, strikethrough: bool) -> Rc<Self> {
+        let mut format = self.clone();
+        format.strikethrough = strikethrough;
+        Rc::new(format)
+    }
+
+    pub fn with_justification(&self, justification: Justification) -> Rc<Self> {
+        let mut format = self.clone();
+        format.justification = justification;
+        Rc::new(format)
+    }
+
     fn char_bounding_width(&self) -> usize {
         let mut width: usize = if !(self.flags & FormatFlags::NARROW).is_empty() {
             8

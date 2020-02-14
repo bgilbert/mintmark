@@ -25,51 +25,70 @@ fn main() -> Result<(), io::Error> {
                         // Center first.  This only takes effect at the
                         // start of the line, so end tag handling needs to
                         // specially account for it.
-                        renderer.set_justification(Justification::Center);
+                        renderer.set_format(
+                            renderer.format().with_justification(Justification::Center),
+                        );
                         match size {
                             1 => {
-                                renderer.set_unidirectional(true).set_flags(
-                                    FormatFlags::DOUBLE_HEIGHT
-                                        | FormatFlags::DOUBLE_WIDTH
-                                        | FormatFlags::EMPHASIZED
-                                        | FormatFlags::UNDERLINE,
+                                renderer.set_format(
+                                    renderer.format().with_unidirectional(true).with_flags(
+                                        FormatFlags::DOUBLE_HEIGHT
+                                            | FormatFlags::DOUBLE_WIDTH
+                                            | FormatFlags::EMPHASIZED
+                                            | FormatFlags::UNDERLINE,
+                                    ),
                                 );
                             }
                             2 => {
-                                renderer.set_unidirectional(true).set_flags(
-                                    FormatFlags::DOUBLE_HEIGHT
-                                        | FormatFlags::DOUBLE_WIDTH
-                                        | FormatFlags::EMPHASIZED,
+                                renderer.set_format(
+                                    renderer.format().with_unidirectional(true).with_flags(
+                                        FormatFlags::DOUBLE_HEIGHT
+                                            | FormatFlags::DOUBLE_WIDTH
+                                            | FormatFlags::EMPHASIZED,
+                                    ),
                                 );
                             }
                             3 => {
-                                renderer
-                                    .set_flags(FormatFlags::EMPHASIZED | FormatFlags::UNDERLINE)
-                                    .clear_flags(FormatFlags::NARROW);
+                                renderer.set_format(
+                                    renderer
+                                        .format()
+                                        .with_flags(
+                                            FormatFlags::EMPHASIZED | FormatFlags::UNDERLINE,
+                                        )
+                                        .without_flags(FormatFlags::NARROW),
+                                );
                             }
                             4 => {
-                                renderer
-                                    .set_flags(FormatFlags::EMPHASIZED)
-                                    .clear_flags(FormatFlags::NARROW);
+                                renderer.set_format(
+                                    renderer
+                                        .format()
+                                        .with_flags(FormatFlags::EMPHASIZED)
+                                        .without_flags(FormatFlags::NARROW),
+                                );
                             }
                             5 => {
-                                renderer
-                                    .set_flags(FormatFlags::EMPHASIZED | FormatFlags::UNDERLINE);
+                                renderer.set_format(
+                                    renderer.format().with_flags(
+                                        FormatFlags::EMPHASIZED | FormatFlags::UNDERLINE,
+                                    ),
+                                );
                             }
                             _ => {
-                                renderer.set_flags(FormatFlags::EMPHASIZED);
+                                renderer.set_format(
+                                    renderer.format().with_flags(FormatFlags::EMPHASIZED),
+                                );
                             }
                         }
                     }
                     Tag::BlockQuote => {
-                        renderer.add_indent(4);
+                        renderer.set_format(renderer.format().with_added_indent(4));
                     }
                     Tag::CodeBlock(format) => match format.into_string().as_str() {
                         "qrcode" => {
                             in_qr_code += 1;
                         }
                         _ => {
-                            renderer.set_red(true);
+                            renderer.set_format(renderer.format().with_red(true));
                         }
                     },
                     Tag::List(first_item_number) => {
@@ -81,12 +100,13 @@ fn main() -> Result<(), io::Error> {
                             Some(n) => {
                                 let marker = format!("{:2}. ", n);
                                 renderer.write(&marker)?;
-                                renderer.add_indent(marker.len());
+                                renderer
+                                    .set_format(renderer.format().with_added_indent(marker.len()));
                                 *item.as_mut().unwrap() += 1;
                             }
                             None => {
                                 renderer.write("  - ")?;
-                                renderer.add_indent(4);
+                                renderer.set_format(renderer.format().with_added_indent(4));
                             }
                         }
                     }
@@ -96,13 +116,13 @@ fn main() -> Result<(), io::Error> {
                     Tag::TableRow => {}
                     Tag::TableCell => {}
                     Tag::Emphasis => {
-                        renderer.set_flags(FormatFlags::UNDERLINE);
+                        renderer.set_format(renderer.format().with_flags(FormatFlags::UNDERLINE));
                     }
                     Tag::Strong => {
-                        renderer.set_flags(FormatFlags::EMPHASIZED);
+                        renderer.set_format(renderer.format().with_flags(FormatFlags::EMPHASIZED));
                     }
                     Tag::Strikethrough => {
-                        renderer.set_strikethrough(true);
+                        renderer.set_format(renderer.format().with_strikethrough(true));
                     }
                     Tag::Link(_, _, _) => {}
                     Tag::Image(_, _, _) => {}
@@ -112,30 +132,23 @@ fn main() -> Result<(), io::Error> {
                 Tag::Paragraph => {
                     renderer.write("\n\n")?;
                 }
-                Tag::Heading(size) => {
+                Tag::Heading(_) => {
                     // peel off everything but the centering command
-                    match size {
-                        1 | 2 | 3 | 4 => {
-                            renderer.restore().restore();
-                        }
-                        5 | _ => {
-                            renderer.restore();
-                        }
-                    }
+                    renderer.restore_format();
                     renderer.write("\n\n")?;
                     // peel off the centering command now that we're at
                     // the start of a line
-                    renderer.restore();
+                    renderer.restore_format();
                 }
                 Tag::BlockQuote => {
-                    renderer.restore();
+                    renderer.restore_format();
                 }
                 Tag::CodeBlock(format) => match format.into_string().as_str() {
                     "qrcode" => {
                         in_qr_code -= 1;
                     }
                     _ => {
-                        renderer.restore();
+                        renderer.restore_format();
                     }
                 },
                 Tag::List(_first_item_number) => {
@@ -143,7 +156,7 @@ fn main() -> Result<(), io::Error> {
                     renderer.write("\n")?;
                 }
                 Tag::Item => {
-                    renderer.restore();
+                    renderer.restore_format();
                     renderer.write("\n")?;
                 }
                 Tag::FootnoteDefinition(_s) => {}
@@ -152,13 +165,13 @@ fn main() -> Result<(), io::Error> {
                 Tag::TableRow => {}
                 Tag::TableCell => {}
                 Tag::Emphasis => {
-                    renderer.restore();
+                    renderer.restore_format();
                 }
                 Tag::Strong => {
-                    renderer.restore();
+                    renderer.restore_format();
                 }
                 Tag::Strikethrough => {
-                    renderer.restore();
+                    renderer.restore_format();
                 }
                 Tag::Link(_, _, _) => {}
                 Tag::Image(_, _, _) => {}
@@ -171,9 +184,9 @@ fn main() -> Result<(), io::Error> {
                 }
             }
             Event::Code(contents) => {
-                renderer.set_red(true);
+                renderer.set_format(renderer.format().with_red(true));
                 renderer.write(&contents)?;
-                renderer.restore();
+                renderer.restore_format();
             }
             Event::Html(_e) => {}
             Event::FootnoteReference(_e) => {}
