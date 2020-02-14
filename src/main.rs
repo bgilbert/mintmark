@@ -3,7 +3,7 @@ mod render;
 use pulldown_cmark::{Event, Options, Parser, Tag};
 use std::io::{self, Read};
 
-use render::{Justification, RenderFlags, Renderer};
+use render::{FormatFlags, Justification, Renderer};
 
 fn main() -> Result<(), io::Error> {
     let mut input: Vec<u8> = Vec::new();
@@ -29,35 +29,35 @@ fn main() -> Result<(), io::Error> {
                         match size {
                             1 => {
                                 renderer.set_unidirectional(true).set_flags(
-                                    RenderFlags::DOUBLE_HEIGHT
-                                        | RenderFlags::DOUBLE_WIDTH
-                                        | RenderFlags::EMPHASIZED
-                                        | RenderFlags::UNDERLINE,
+                                    FormatFlags::DOUBLE_HEIGHT
+                                        | FormatFlags::DOUBLE_WIDTH
+                                        | FormatFlags::EMPHASIZED
+                                        | FormatFlags::UNDERLINE,
                                 );
                             }
                             2 => {
                                 renderer.set_unidirectional(true).set_flags(
-                                    RenderFlags::DOUBLE_HEIGHT
-                                        | RenderFlags::DOUBLE_WIDTH
-                                        | RenderFlags::EMPHASIZED,
+                                    FormatFlags::DOUBLE_HEIGHT
+                                        | FormatFlags::DOUBLE_WIDTH
+                                        | FormatFlags::EMPHASIZED,
                                 );
                             }
                             3 => {
                                 renderer
-                                    .set_flags(RenderFlags::EMPHASIZED | RenderFlags::UNDERLINE)
-                                    .clear_flags(RenderFlags::NARROW);
+                                    .set_flags(FormatFlags::EMPHASIZED | FormatFlags::UNDERLINE)
+                                    .clear_flags(FormatFlags::NARROW);
                             }
                             4 => {
                                 renderer
-                                    .set_flags(RenderFlags::EMPHASIZED)
-                                    .clear_flags(RenderFlags::NARROW);
+                                    .set_flags(FormatFlags::EMPHASIZED)
+                                    .clear_flags(FormatFlags::NARROW);
                             }
                             5 => {
                                 renderer
-                                    .set_flags(RenderFlags::EMPHASIZED | RenderFlags::UNDERLINE);
+                                    .set_flags(FormatFlags::EMPHASIZED | FormatFlags::UNDERLINE);
                             }
                             _ => {
-                                renderer.set_flags(RenderFlags::EMPHASIZED);
+                                renderer.set_flags(FormatFlags::EMPHASIZED);
                             }
                         }
                     }
@@ -96,10 +96,10 @@ fn main() -> Result<(), io::Error> {
                     Tag::TableRow => {}
                     Tag::TableCell => {}
                     Tag::Emphasis => {
-                        renderer.set_flags(RenderFlags::UNDERLINE);
+                        renderer.set_flags(FormatFlags::UNDERLINE);
                     }
                     Tag::Strong => {
-                        renderer.set_flags(RenderFlags::EMPHASIZED);
+                        renderer.set_flags(FormatFlags::EMPHASIZED);
                     }
                     Tag::Strikethrough => {
                         renderer.set_strikethrough(true);

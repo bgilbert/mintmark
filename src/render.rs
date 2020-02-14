@@ -10,7 +10,7 @@ const LINE_PIXELS_IMAGE: usize = 200;
 const LINE_PIXELS_TEXT: usize = 320;
 
 bitflags! {
-    pub struct RenderFlags: u8 {
+    pub struct FormatFlags: u8 {
         const NARROW = 0x01;
         const EMPHASIZED = 0x08;
         const DOUBLE_HEIGHT = 0x10;
@@ -46,7 +46,7 @@ pub struct Renderer {
 
 #[derive(Clone, Eq, PartialEq)]
 struct Format {
-    flags: RenderFlags,
+    flags: FormatFlags,
     line_spacing: u8,
     indent: usize,
     red: bool,
@@ -58,7 +58,7 @@ struct Format {
 impl Renderer {
     pub fn new() -> Result<Self, io::Error> {
         let format = Rc::new(Format {
-            flags: RenderFlags::NARROW,
+            flags: FormatFlags::NARROW,
             line_spacing: 24,
             indent: 0,
             red: false,
@@ -85,13 +85,13 @@ impl Renderer {
         Rc::get_mut(&mut self.format).unwrap()
     }
 
-    pub fn set_flags(&mut self, flags: RenderFlags) -> &mut Self {
+    pub fn set_flags(&mut self, flags: FormatFlags) -> &mut Self {
         let format = self.new_format();
         format.flags |= flags;
         self
     }
 
-    pub fn clear_flags(&mut self, flags: RenderFlags) -> &mut Self {
+    pub fn clear_flags(&mut self, flags: FormatFlags) -> &mut Self {
         let format = self.new_format();
         format.flags &= !flags;
         self
@@ -346,24 +346,24 @@ impl Renderer {
 
 impl Format {
     fn char_bounding_width(&self) -> usize {
-        let mut width: usize = if !(self.flags & RenderFlags::NARROW).is_empty() {
+        let mut width: usize = if !(self.flags & FormatFlags::NARROW).is_empty() {
             8
         } else {
             10
         };
-        if !(self.flags & RenderFlags::DOUBLE_WIDTH).is_empty() {
+        if !(self.flags & FormatFlags::DOUBLE_WIDTH).is_empty() {
             width *= 2
         }
         width
     }
 
     fn char_overstrike_width(&self) -> usize {
-        let mut width: usize = if !(self.flags & RenderFlags::NARROW).is_empty() {
+        let mut width: usize = if !(self.flags & FormatFlags::NARROW).is_empty() {
             5
         } else {
             6
         };
-        if !(self.flags & RenderFlags::DOUBLE_WIDTH).is_empty() {
+        if !(self.flags & FormatFlags::DOUBLE_WIDTH).is_empty() {
             width *= 2
         }
         width
@@ -412,7 +412,7 @@ static PASSES: [LinePass; 4] = [
         format_map: |mut format, active| {
             if !active {
                 format.red = false;
-                format.flags &= !RenderFlags::UNDERLINE
+                format.flags &= !FormatFlags::UNDERLINE
             };
             format
         },
@@ -424,7 +424,7 @@ static PASSES: [LinePass; 4] = [
         format_map: |mut format, active| {
             if !active {
                 format.red = false;
-                format.flags &= !RenderFlags::UNDERLINE
+                format.flags &= !FormatFlags::UNDERLINE
             };
             format
         },
@@ -436,7 +436,7 @@ static PASSES: [LinePass; 4] = [
         format_map: |mut format, active| {
             if !active {
                 format.red = true;
-                format.flags &= !RenderFlags::UNDERLINE
+                format.flags &= !FormatFlags::UNDERLINE
             };
             format
         },
@@ -448,7 +448,7 @@ static PASSES: [LinePass; 4] = [
         format_map: |mut format, active| {
             if !active {
                 format.red = true;
-                format.flags &= !RenderFlags::UNDERLINE
+                format.flags &= !FormatFlags::UNDERLINE
             };
             format
         },
