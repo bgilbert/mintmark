@@ -1,9 +1,12 @@
 mod render;
 
+use image::GrayImage;
 use pulldown_cmark::{Event, Options, Parser, Tag};
+use qrcode::{EcLevel, QrCode};
+use std::convert::TryInto;
 use std::io::{self, Read};
 
-use render::{FormatFlags, Justification, Renderer};
+use render::{FormatFlags, Justification, Renderer, LINE_PIXELS_IMAGE};
 
 fn main() -> Result<(), io::Error> {
     let mut input: Vec<u8> = Vec::new();
@@ -178,7 +181,7 @@ fn main() -> Result<(), io::Error> {
             },
             Event::Text(contents) => {
                 if in_qr_code > 0 {
-                    renderer.write_qr(&contents.as_bytes())?;
+                    write_qr(&mut renderer, &contents.as_bytes())?;
                 } else {
                     renderer.write(&contents)?;
                 }
@@ -206,4 +209,31 @@ fn main() -> Result<(), io::Error> {
     renderer.cut()?;
 
     Ok(())
+}
+
+fn write_qr(renderer: &mut Renderer, contents: &[u8]) -> Result<(), io::Error> {
+    // Build code
+    let code =
+        QrCode::with_error_correction_level(contents, EcLevel::L).expect("Building QR code failed");
+    // qrcode is supposed to be able to generate an Image directly,
+    // but that doesn't work.  Take the long way around.
+    // https://github.com/kennytm/qrcode-rust/issues/19
+    let image_str_with_newlines = code
+        .render()
+        .max_dimensions(LINE_PIXELS_IMAGE as u32, LINE_PIXELS_IMAGE as u32)
+        .dark_color('#')
+        .light_color(' ')
+        .build();
+    let image_str = image_str_with_newlines.replace("\n", "");
+    let height = image_str_with_newlines.len() - image_str.len() + 1;
+    let width = image_str.len() / height;
+    let mut image = GrayImage::new(
+        width.try_into().expect("width too large"),
+        height.try_into().expect("height too large"),
+    );
+    for (item, pixel) in image_str.chars().zip(image.pixels_mut()) {
+        pixel[0] = if item == '#' { 255 } else { 0 };
+    }
+
+    renderer.write_image(&image)
 }
