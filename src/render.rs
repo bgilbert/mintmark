@@ -1,8 +1,9 @@
 use bitflags::bitflags;
 use encoding::all::ASCII;
 use encoding::types::{EncoderTrap, Encoding};
+use image::{GrayImage, Luma};
 use qrcode::{EcLevel, QrCode};
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::io::{self, Write};
 use std::rc::Rc;
 
@@ -181,27 +182,7 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn write_qr(&mut self, contents: &[u8]) -> Result<(), io::Error> {
-        // Build code
-        let code = QrCode::with_error_correction_level(contents, EcLevel::L)
-            .expect("Building QR code failed");
-        let image_str = code
-            .render()
-            .max_dimensions(LINE_PIXELS_IMAGE as u32, LINE_PIXELS_IMAGE as u32)
-            .dark_color('#')
-            .light_color(' ')
-            .build();
-        let mut image: Vec<Vec<bool>> = Vec::with_capacity(LINE_PIXELS_IMAGE);
-        for line in image_str.split('\n') {
-            let mut line_vec: Vec<bool> = Vec::with_capacity(LINE_PIXELS_IMAGE);
-            for item in line.chars() {
-                line_vec.push(item == '#');
-            }
-            image.push(line_vec);
-        }
-        let width = image[0].len();
-        let height = image.len();
-
+    pub fn write_image(&mut self, image: &GrayImage) -> Result<(), io::Error> {
         // Flush line buffer if non-empty
         if self.line_width > 0 {
             self.send_line()?;
@@ -217,26 +198,27 @@ impl Renderer {
                 .with_justification(Justification::Center),
         );
 
-        // Write code
-        for yblock in 0..height / 8 {
-            for byte in bit_image_prologue(width)? {
+        // Write image
+        for yblock in 0..image.height() / 8 {
+            for byte in bit_image_prologue(image.width() as usize)? {
                 self.line.push(LineChar {
                     char: byte,
                     format: self.format.clone(),
                 })
             }
-            for x in 0..width {
+            for x in 0..image.width() {
                 let mut byte: u8 = 0;
-                for row in image.iter().skip(yblock * 8).take(8) {
+                for y in yblock * 8..(yblock + 1) * 8 {
+                    let Luma(level) = image.get_pixel(x, y);
                     byte <<= 1;
-                    byte |= row[x] as u8;
+                    byte |= (level[0] > 128) as u8;
                 }
                 self.line.push(LineChar {
                     char: byte,
                     format: self.format.clone(),
                 });
             }
-            self.line_width += width;
+            self.line_width += image.width() as usize;
             self.send_line()?;
         }
 
@@ -244,6 +226,33 @@ impl Renderer {
         self.restore_format();
 
         Ok(())
+    }
+
+    pub fn write_qr(&mut self, contents: &[u8]) -> Result<(), io::Error> {
+        // Build code
+        let code = QrCode::with_error_correction_level(contents, EcLevel::L)
+            .expect("Building QR code failed");
+        // qrcode is supposed to be able to generate an Image directly,
+        // but that doesn't work.  Take the long way around.
+        // https://github.com/kennytm/qrcode-rust/issues/19
+        let image_str_with_newlines = code
+            .render()
+            .max_dimensions(LINE_PIXELS_IMAGE as u32, LINE_PIXELS_IMAGE as u32)
+            .dark_color('#')
+            .light_color(' ')
+            .build();
+        let image_str = image_str_with_newlines.replace("\n", "");
+        let height = image_str_with_newlines.len() - image_str.len() + 1;
+        let width = image_str.len() / height;
+        let mut image = GrayImage::new(
+            width.try_into().expect("width too large"),
+            height.try_into().expect("height too large"),
+        );
+        for (item, pixel) in image_str.chars().zip(image.pixels_mut()) {
+            pixel[0] = if item == '#' { 255 } else { 0 };
+        }
+
+        self.write_image(&image)
     }
 
     // Advance paper and perform partial cut
