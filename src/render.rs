@@ -210,7 +210,7 @@ impl Renderer {
                 for y in yblock * 8..(yblock + 1) * 8 {
                     let Luma(level) = image.get_pixel(x, y);
                     byte <<= 1;
-                    byte |= (level[0] > 128) as u8;
+                    byte |= (level[0] < 128) as u8;
                 }
                 self.line.push(LineChar {
                     char: byte,

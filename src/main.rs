@@ -248,7 +248,7 @@ fn write_qrcode(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
     );
     for (item, pixel) in image_str.chars().zip(image.pixels_mut()) {
-        pixel[0] = if item == '#' { 255 } else { 0 };
+        pixel[0] = if item == '#' { 0 } else { 255 };
     }
 
     renderer.write_image(&image)
@@ -274,7 +274,7 @@ fn write_code128(renderer: &mut Renderer, contents: &str) -> Result<(), io::Erro
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
                 y.try_into()
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-            )[0] = if *value > 0 { 255 } else { 0 };
+            )[0] = if *value > 0 { 0 } else { 255 };
         }
     }
     renderer.write_image(&image)
