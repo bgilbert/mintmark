@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 barcoders = "1.0.1"
 bitflags = "1.2.1"
+clap = "2.33.0"
 encoding = "0.2.33"
 image = { version = "0.23.0", default-features = false }
 pulldown-cmark = "0.6.1"

@@ -1,6 +1,7 @@
 mod render;
 
 use barcoders::sym::code128::Code128;
+use clap::{crate_version, App, Arg};
 use image::GrayImage;
 use pulldown_cmark::{Event, Options, Parser, Tag};
 use qrcode::{EcLevel, QrCode};
@@ -10,6 +11,17 @@ use std::io::{self, Read};
 use render::{FormatFlags, Justification, Renderer};
 
 fn main() -> Result<(), io::Error> {
+    let args = App::new("mintmark")
+        .version(crate_version!())
+        .about("Print Markdown to an Epson TM-U220B receipt printer.")
+        .arg(
+            Arg::with_name("device")
+                .value_name("DEVICE-PATH")
+                .required(true)
+                .help("path to the character device node"),
+        )
+        .get_matches();
+
     let mut input_bytes: Vec<u8> = Vec::new();
     io::stdin().lock().read_to_end(&mut input_bytes)?;
     let input = std::str::from_utf8(&input_bytes)
