@@ -6,7 +6,8 @@ use image::GrayImage;
 use pulldown_cmark::{Event, Options, Parser, Tag};
 use qrcode::{EcLevel, QrCode};
 use std::convert::TryInto;
-use std::io::{self, Read};
+use std::fs::OpenOptions;
+use std::io::{self, Read, Write};
 
 use render::{FormatFlags, Justification, Renderer};
 
@@ -27,15 +28,18 @@ fn main() -> Result<(), io::Error> {
     let input = std::str::from_utf8(&input_bytes)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    render(&input)
+    let device = args.value_of("device").unwrap();
+    let mut output = OpenOptions::new().read(true).write(true).open(device)?;
+
+    render(&input, &mut output)
 }
 
-fn render(input: &str) -> Result<(), io::Error> {
+fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<(), io::Error> {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_STRIKETHROUGH);
     let parser = Parser::new_ext(input, options);
 
-    let mut renderer = Renderer::new()?;
+    let mut renderer = Renderer::new(output)?;
     let mut code_formats: Vec<String> = Vec::new();
     let mut lists: Vec<Option<u64>> = Vec::new();
     for (event, _) in parser.into_offset_iter() {
@@ -246,7 +250,10 @@ fn render(input: &str) -> Result<(), io::Error> {
     Ok(())
 }
 
-fn write_image(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error> {
+fn write_image<F: Read + Write>(
+    renderer: &mut Renderer<F>,
+    contents: &str,
+) -> Result<(), io::Error> {
     let width = contents.split('\n').fold(0, |acc, l| acc.max(l.len()));
     let height = contents.split('\n').count();
     let mut image = GrayImage::new(
@@ -273,7 +280,10 @@ fn write_image(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error>
     renderer.write_image(&image)
 }
 
-fn write_qrcode(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error> {
+fn write_qrcode<F: Read + Write>(
+    renderer: &mut Renderer<F>,
+    contents: &str,
+) -> Result<(), io::Error> {
     // Build code
     let code = QrCode::with_error_correction_level(&contents.as_bytes(), EcLevel::L)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
@@ -304,7 +314,10 @@ fn write_qrcode(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error
     renderer.write_image(&image)
 }
 
-fn write_code128(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error> {
+fn write_code128<F: Read + Write>(
+    renderer: &mut Renderer<F>,
+    contents: &str,
+) -> Result<(), io::Error> {
     // Build code, character set B
     let data = Code128::new(format!("\u{0181}{}", contents))
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?

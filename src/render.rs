@@ -3,14 +3,16 @@ use encoding::all::ASCII;
 use encoding::types::{EncoderTrap, Encoding};
 use image::{GrayImage, Luma};
 use std::convert::TryFrom;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::rc::Rc;
 
 #[allow(dead_code)]
 const LINE_PIXELS_IMAGE: usize = 200;
 const LINE_PIXELS_TEXT: usize = 320;
 
-pub struct Renderer {
+pub struct Renderer<F: Read + Write> {
+    device: F,
+
     format: Rc<Format>,
     stack: Vec<Rc<Format>>,
 
@@ -56,9 +58,10 @@ struct LineChar {
     format: Rc<Format>,
 }
 
-impl Renderer {
-    pub fn new() -> Result<Self, io::Error> {
-        let mut renderer = Renderer {
+impl<F: Read + Write> Renderer<F> {
+    pub fn new(device: F) -> Result<Self, io::Error> {
+        let mut renderer = Renderer::<F> {
+            device,
             format: Format::new(),
             stack: Vec::new(),
             line: Vec::new(),
@@ -274,7 +277,7 @@ impl Renderer {
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<(), io::Error> {
-        io::stdout().write_all(buf)
+        self.device.write_all(buf)
     }
 }
 

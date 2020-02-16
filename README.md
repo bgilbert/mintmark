@@ -5,7 +5,7 @@ Driver for an Epson TM-U220B receipt printer, taking Markdown as input.
 ## Usage
 
 ```sh
-target/debug/mintmark < input.md > /dev/usb/lp0
+target/debug/mintmark /dev/usb/lp0 < input.md
 ```
 
 ## Features
