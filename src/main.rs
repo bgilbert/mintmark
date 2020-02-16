@@ -185,7 +185,7 @@ fn main() -> Result<(), io::Error> {
             Event::Text(contents) => {
                 match code_formats.last().unwrap_or(&"".to_string()).as_str() {
                     "qrcode" => {
-                        write_qrcode(&mut renderer, &contents)?;
+                        write_qrcode(&mut renderer, &contents.trim())?;
                     }
                     _ => {
                         renderer.write(&contents)?;
