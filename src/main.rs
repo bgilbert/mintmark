@@ -7,7 +7,7 @@ use qrcode::{EcLevel, QrCode};
 use std::convert::TryInto;
 use std::io::{self, Read};
 
-use render::{FormatFlags, Justification, Renderer, LINE_PIXELS_IMAGE};
+use render::{FormatFlags, Justification, Renderer};
 
 fn main() -> Result<(), io::Error> {
     let mut input: Vec<u8> = Vec::new();
@@ -232,7 +232,7 @@ fn write_qrcode(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error
     // https://github.com/kennytm/qrcode-rust/issues/19
     let image_str_with_newlines = code
         .render()
-        .max_dimensions(LINE_PIXELS_IMAGE as u32, LINE_PIXELS_IMAGE as u32)
+        .module_dimensions(2, 2)
         .dark_color('#')
         .light_color(' ')
         .build();

@@ -6,7 +6,8 @@ use std::convert::TryFrom;
 use std::io::{self, Write};
 use std::rc::Rc;
 
-pub const LINE_PIXELS_IMAGE: usize = 200;
+#[allow(dead_code)]
+const LINE_PIXELS_IMAGE: usize = 200;
 const LINE_PIXELS_TEXT: usize = 320;
 
 pub struct Renderer {
