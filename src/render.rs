@@ -198,7 +198,7 @@ impl Renderer {
         );
 
         // Write image
-        for yblock in 0..image.height() / 8 {
+        for yblock in 0..(image.height() + 7) / 8 {
             for byte in bit_image_prologue(image.width() as usize)? {
                 self.line.push(LineChar {
                     char: byte,
@@ -208,7 +208,11 @@ impl Renderer {
             for x in 0..image.width() {
                 let mut byte: u8 = 0;
                 for y in yblock * 8..(yblock + 1) * 8 {
-                    let Luma(level) = image.get_pixel(x, y);
+                    let Luma(level) = if y < image.height() {
+                        image.get_pixel(x, y)
+                    } else {
+                        &Luma([255])
+                    };
                     byte <<= 1;
                     byte |= (level[0] < 128) as u8;
                 }
