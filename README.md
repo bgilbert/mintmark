@@ -26,6 +26,7 @@ target/debug/mintmark /dev/usb/lp0 < input.md
 
 ## Missing and non-features
 
+- Paper widths other than 3"
 - Images (rendered as the alt text)
 - Links (rendered as the link text)
 - Tables
