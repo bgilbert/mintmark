@@ -185,7 +185,7 @@ fn main() -> Result<(), io::Error> {
             Event::Text(contents) => {
                 match code_formats.last().unwrap_or(&"".to_string()).as_str() {
                     "qrcode" => {
-                        write_qr(&mut renderer, &contents.as_bytes())?;
+                        write_qrcode(&mut renderer, &contents)?;
                     }
                     _ => {
                         renderer.write(&contents)?;
@@ -217,10 +217,10 @@ fn main() -> Result<(), io::Error> {
     Ok(())
 }
 
-fn write_qr(renderer: &mut Renderer, contents: &[u8]) -> Result<(), io::Error> {
+fn write_qrcode(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error> {
     // Build code
-    let code =
-        QrCode::with_error_correction_level(contents, EcLevel::L).expect("Building QR code failed");
+    let code = QrCode::with_error_correction_level(&contents.as_bytes(), EcLevel::L)
+        .expect("Building QR code failed");
     // qrcode is supposed to be able to generate an Image directly,
     // but that doesn't work.  Take the long way around.
     // https://github.com/kennytm/qrcode-rust/issues/19
