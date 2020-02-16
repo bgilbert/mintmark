@@ -17,7 +17,7 @@ fn main() -> Result<(), io::Error> {
     let parser = Parser::new_ext(std::str::from_utf8(&input).expect("bad utf-8"), options);
 
     let mut renderer = Renderer::new()?;
-    let mut in_qr_code: u32 = 0;
+    let mut code_formats: Vec<String> = Vec::new();
     let mut lists: Vec<Option<u64>> = Vec::new();
     for (event, _) in parser.into_offset_iter() {
         match event {
@@ -86,14 +86,16 @@ fn main() -> Result<(), io::Error> {
                     Tag::BlockQuote => {
                         renderer.set_format(renderer.format().with_added_indent(4));
                     }
-                    Tag::CodeBlock(format) => match format.into_string().as_str() {
-                        "qrcode" => {
-                            in_qr_code += 1;
+                    Tag::CodeBlock(format_cow) => {
+                        let format = format_cow.into_string();
+                        match format.as_str() {
+                            "qrcode" => {}
+                            _ => {
+                                renderer.set_format(renderer.format().with_red(true));
+                            }
                         }
-                        _ => {
-                            renderer.set_format(renderer.format().with_red(true));
-                        }
-                    },
+                        code_formats.push(format);
+                    }
                     Tag::List(first_item_number) => {
                         lists.push(first_item_number);
                     }
@@ -146,14 +148,15 @@ fn main() -> Result<(), io::Error> {
                 Tag::BlockQuote => {
                     renderer.restore_format();
                 }
-                Tag::CodeBlock(format) => match format.into_string().as_str() {
-                    "qrcode" => {
-                        in_qr_code -= 1;
+                Tag::CodeBlock(format) => {
+                    code_formats.pop();
+                    match format.into_string().as_str() {
+                        "qrcode" => {}
+                        _ => {
+                            renderer.restore_format();
+                        }
                     }
-                    _ => {
-                        renderer.restore_format();
-                    }
-                },
+                }
                 Tag::List(_first_item_number) => {
                     lists.pop();
                     renderer.write("\n")?;
@@ -180,10 +183,13 @@ fn main() -> Result<(), io::Error> {
                 Tag::Image(_, _, _) => {}
             },
             Event::Text(contents) => {
-                if in_qr_code > 0 {
-                    write_qr(&mut renderer, &contents.as_bytes())?;
-                } else {
-                    renderer.write(&contents)?;
+                match code_formats.last().unwrap_or(&"".to_string()).as_str() {
+                    "qrcode" => {
+                        write_qr(&mut renderer, &contents.as_bytes())?;
+                    }
+                    _ => {
+                        renderer.write(&contents)?;
+                    }
                 }
             }
             Event::Code(contents) => {
