@@ -10,12 +10,18 @@ use std::io::{self, Read};
 use render::{FormatFlags, Justification, Renderer};
 
 fn main() -> Result<(), io::Error> {
-    let mut input: Vec<u8> = Vec::new();
-    io::stdin().lock().read_to_end(&mut input)?;
+    let mut input_bytes: Vec<u8> = Vec::new();
+    io::stdin().lock().read_to_end(&mut input_bytes)?;
+    let input = std::str::from_utf8(&input_bytes)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
+    render(&input)
+}
+
+fn render(input: &str) -> Result<(), io::Error> {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_STRIKETHROUGH);
-    let parser = Parser::new_ext(std::str::from_utf8(&input).expect("bad utf-8"), options);
+    let parser = Parser::new_ext(input, options);
 
     let mut renderer = Renderer::new()?;
     let mut code_formats: Vec<String> = Vec::new();
