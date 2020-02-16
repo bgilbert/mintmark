@@ -90,6 +90,7 @@ fn main() -> Result<(), io::Error> {
                     Tag::CodeBlock(format_cow) => {
                         let format = format_cow.into_string();
                         match format.as_str() {
+                            "image" => {}
                             "qrcode" => {}
                             "code128" => {}
                             _ => {
@@ -153,6 +154,7 @@ fn main() -> Result<(), io::Error> {
                 Tag::CodeBlock(format) => {
                     code_formats.pop();
                     match format.into_string().as_str() {
+                        "image" => {}
                         "qrcode" => {}
                         "code128" => {}
                         _ => {
@@ -187,6 +189,9 @@ fn main() -> Result<(), io::Error> {
             },
             Event::Text(contents) => {
                 match code_formats.last().unwrap_or(&"".to_string()).as_str() {
+                    "image" => {
+                        write_image(&mut renderer, &contents.trim_end_matches('\n'))?;
+                    }
                     "qrcode" => {
                         write_qrcode(&mut renderer, &contents.trim())?;
                     }
@@ -221,6 +226,33 @@ fn main() -> Result<(), io::Error> {
     renderer.cut()?;
 
     Ok(())
+}
+
+fn write_image(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error> {
+    let width = contents.split('\n').fold(0, |acc, l| acc.max(l.len()));
+    let height = contents.split('\n').count();
+    let mut image = GrayImage::new(
+        width
+            .try_into()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        height
+            .try_into()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+    );
+    for pixel in image.pixels_mut() {
+        pixel[0] = 255;
+    }
+    for (y, row) in contents.split('\n').enumerate() {
+        for (x, value) in row.chars().enumerate() {
+            image.get_pixel_mut(
+                x.try_into()
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+                y.try_into()
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            )[0] = if value != ' ' { 0 } else { 255 };
+        }
+    }
+    renderer.write_image(&image)
 }
 
 fn write_qrcode(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error> {
