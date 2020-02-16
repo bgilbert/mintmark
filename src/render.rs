@@ -100,7 +100,7 @@ impl Renderer {
     pub fn write(&mut self, contents: &str) -> Result<(), io::Error> {
         let mut bytes = ASCII
             .encode(contents, EncoderTrap::Replace)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
         for byte in &mut bytes {
             // Got to the next word break?  Write out the word.
             if self.word_has_letters && (*byte == b'\n' || *byte == b' ') {
@@ -360,17 +360,11 @@ impl Format {
 }
 
 fn bit_image_prologue(width: usize) -> Result<Vec<u8>, io::Error> {
-    match u16::try_from(width) {
-        Ok(width_u16) => {
-            let width_bytes = &width_u16.to_le_bytes();
-            // Bit image mode 0, vert 72 dpi, horz 80 dpi, width 200 dots
-            Ok(vec![0x1b, b'*', 0, width_bytes[0], width_bytes[1]])
-        }
-        Err(_) => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "width too large",
-        )),
-    }
+    let width_u16 = u16::try_from(width)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
+    let width_bytes = &width_u16.to_le_bytes();
+    // Bit image mode 0, vert 72 dpi, horz 80 dpi, width 200 dots
+    Ok(vec![0x1b, b'*', 0, width_bytes[0], width_bytes[1]])
 }
 
 struct LinePass {

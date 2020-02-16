@@ -226,7 +226,7 @@ fn main() -> Result<(), io::Error> {
 fn write_qrcode(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error> {
     // Build code
     let code = QrCode::with_error_correction_level(&contents.as_bytes(), EcLevel::L)
-        .expect("Building QR code failed");
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
     // qrcode is supposed to be able to generate an Image directly,
     // but that doesn't work.  Take the long way around.
     // https://github.com/kennytm/qrcode-rust/issues/19
@@ -240,8 +240,12 @@ fn write_qrcode(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error
     let height = image_str_with_newlines.len() - image_str.len() + 1;
     let width = image_str.len() / height;
     let mut image = GrayImage::new(
-        width.try_into().expect("width too large"),
-        height.try_into().expect("height too large"),
+        width
+            .try_into()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        height
+            .try_into()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
     );
     for (item, pixel) in image_str.chars().zip(image.pixels_mut()) {
         pixel[0] = if item == '#' { 255 } else { 0 };
@@ -252,18 +256,24 @@ fn write_qrcode(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error
 
 fn write_code128(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error> {
     // Build code, character set B
-    let data = match Code128::new(format!("\u{0181}{}", contents)) {
-        Ok(code) => code.encode(),
-        Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e.to_string())),
-    };
+    let data = Code128::new(format!("\u{0181}{}", contents))
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?
+        .encode();
     // The barcoders image feature pulls in image format support, which is
     // large.  Handle the conversion ourselves.
-    let mut image = GrayImage::new(data.len().try_into().expect("width too large"), 24);
+    let mut image = GrayImage::new(
+        data.len()
+            .try_into()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        24,
+    );
     for (x, value) in data.iter().enumerate() {
         for y in 0..image.height() {
             image.get_pixel_mut(
-                x.try_into().expect("width too large"),
-                y.try_into().expect("height too large"),
+                x.try_into()
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+                y.try_into()
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
             )[0] = if *value > 0 { 255 } else { 0 };
         }
     }
