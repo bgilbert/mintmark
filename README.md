@@ -19,6 +19,8 @@ target/debug/mintmark < input.md > /dev/usb/lp0
 - Blockquotes, rendered as indent
 - Horizontal rules, rendered by cutting the paper
 - QR codes, specified as code blocks with the `qrcode` language identifier
+- Code128 code set B barcodes, specified as code blocks with the `code128`
+  language identifier
 
 ## Missing and non-features
 

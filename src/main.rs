@@ -1,5 +1,6 @@
 mod render;
 
+use barcoders::sym::code128::Code128;
 use image::GrayImage;
 use pulldown_cmark::{Event, Options, Parser, Tag};
 use qrcode::{EcLevel, QrCode};
@@ -90,6 +91,7 @@ fn main() -> Result<(), io::Error> {
                         let format = format_cow.into_string();
                         match format.as_str() {
                             "qrcode" => {}
+                            "code128" => {}
                             _ => {
                                 renderer.set_format(renderer.format().with_red(true));
                             }
@@ -152,6 +154,7 @@ fn main() -> Result<(), io::Error> {
                     code_formats.pop();
                     match format.into_string().as_str() {
                         "qrcode" => {}
+                        "code128" => {}
                         _ => {
                             renderer.restore_format();
                         }
@@ -186,6 +189,9 @@ fn main() -> Result<(), io::Error> {
                 match code_formats.last().unwrap_or(&"".to_string()).as_str() {
                     "qrcode" => {
                         write_qrcode(&mut renderer, &contents.trim())?;
+                    }
+                    "code128" => {
+                        write_code128(&mut renderer, &contents.trim())?;
                     }
                     _ => {
                         renderer.write(&contents)?;
@@ -241,5 +247,25 @@ fn write_qrcode(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error
         pixel[0] = if item == '#' { 255 } else { 0 };
     }
 
+    renderer.write_image(&image)
+}
+
+fn write_code128(renderer: &mut Renderer, contents: &str) -> Result<(), io::Error> {
+    // Build code, character set B
+    let data = match Code128::new(format!("\u{0181}{}", contents)) {
+        Ok(code) => code.encode(),
+        Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e.to_string())),
+    };
+    // The barcoders image feature pulls in image format support, which is
+    // large.  Handle the conversion ourselves.
+    let mut image = GrayImage::new(data.len().try_into().expect("width too large"), 24);
+    for (x, value) in data.iter().enumerate() {
+        for y in 0..image.height() {
+            image.get_pixel_mut(
+                x.try_into().expect("width too large"),
+                y.try_into().expect("height too large"),
+            )[0] = if *value > 0 { 255 } else { 0 };
+        }
+    }
     renderer.write_image(&image)
 }
