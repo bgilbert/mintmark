@@ -19,7 +19,7 @@ mod render;
 use barcoders::sym::code128::Code128;
 use clap::{crate_version, App, Arg};
 use image::GrayImage;
-use pulldown_cmark::{Event, Options, Parser, Tag};
+use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag};
 use qrcode::{EcLevel, QrCode};
 use std::convert::TryInto;
 use std::fs::OpenOptions;
@@ -125,8 +125,11 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<(), io::Error>
                     Tag::BlockQuote => {
                         renderer.set_format(renderer.format().with_added_indent(4));
                     }
-                    Tag::CodeBlock(format_cow) => {
-                        let format = format_cow.into_string();
+                    Tag::CodeBlock(kind) => {
+                        let format = match kind {
+                            CodeBlockKind::Indented => "".to_string(),
+                            CodeBlockKind::Fenced(format_cow) => format_cow.into_string(),
+                        };
                         match format.as_str() {
                             "image" => {}
                             "qrcode" => {}
@@ -189,9 +192,13 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<(), io::Error>
                 Tag::BlockQuote => {
                     renderer.restore_format();
                 }
-                Tag::CodeBlock(format) => {
+                Tag::CodeBlock(kind) => {
                     code_formats.pop();
-                    match format.into_string().as_str() {
+                    let format = match kind {
+                        CodeBlockKind::Indented => "".to_string(),
+                        CodeBlockKind::Fenced(format_cow) => format_cow.into_string(),
+                    };
+                    match format.as_str() {
                         "image" => {}
                         "qrcode" => {}
                         "code128" => {}
