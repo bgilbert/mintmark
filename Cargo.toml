@@ -3,6 +3,13 @@ name = "mintmark"
 version = "0.1.0"
 authors = ["Benjamin Gilbert <bgilbert@backtick.net>"]
 edition = "2018"
+license = "Apache-2.0"
+description = "Markdown renderer for Epson TM-U220B receipt printers"
+repository = "https://github.com/bgilbert/mintmark"
+exclude = [
+    ".gitignore",
+    ".travis.yml"
+]
 
 [dependencies]
 barcoders = "1.0.1"
