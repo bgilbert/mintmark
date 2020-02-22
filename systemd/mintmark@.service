@@ -1,0 +1,25 @@
+[Unit]
+Description=Spool Markdown to an Epson TM-U220B receipt printer
+RefuseManualStart=true
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/flock --close ${RUNTIME_DIRECTORY}/lock mintmark /dev/usb/lp0
+User=mintmark
+Group=lp
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+RuntimeDirectory=mintmark
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=true
+PrivateTmp=true
+PrivateNetwork=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+StandardInput=socket
+StandardOutput=null
+StandardError=journal
