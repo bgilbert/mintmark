@@ -18,4 +18,4 @@ clap = "2.33.0"
 encoding = "0.2.33"
 image = { version = "0.23.0", default-features = false }
 pulldown-cmark = "0.7.0"
-qrcode = { version = "0.11", default-features = false }
+qrcode = { version = "0.12", default-features = false }
