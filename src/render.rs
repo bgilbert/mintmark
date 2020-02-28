@@ -28,6 +28,7 @@ const LINE_PIXELS_TEXT: usize = 320;
 
 pub struct Renderer<F: Read + Write> {
     device: F,
+    buf: Vec<u8>,
 
     format: Rc<Format>,
     stack: Vec<Rc<Format>>,
@@ -78,6 +79,7 @@ impl<F: Read + Write> Renderer<F> {
     pub fn new(device: F) -> Result<Self, io::Error> {
         let mut renderer = Renderer::<F> {
             device,
+            buf: Vec::new(),
             format: Format::new(),
             stack: Vec::new(),
             line: Vec::new(),
@@ -293,7 +295,14 @@ impl<F: Read + Write> Renderer<F> {
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<(), io::Error> {
-        self.device.write_all(buf)
+        self.buf.extend_from_slice(buf);
+        Ok(())
+    }
+
+    pub fn print(&mut self) -> Result<(), io::Error> {
+        self.device.write_all(&self.buf)?;
+        self.buf.clear();
+        Ok(())
     }
 }
 

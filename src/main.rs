@@ -270,6 +270,8 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<(), io::Error>
 
     renderer.cut()?;
 
+    renderer.print()?;
+
     Ok(())
 }
 
