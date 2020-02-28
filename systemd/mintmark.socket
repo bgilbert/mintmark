@@ -4,6 +4,8 @@ Description=Listen for TCP connections for mintmark@.service
 [Socket]
 ListenStream=29123
 Accept=true
+KeepAlive=true
+KeepAliveTimeSec=600
 
 [Install]
 WantedBy=multi-user.target
