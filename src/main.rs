@@ -55,7 +55,7 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<(), io::Error>
     options.insert(Options::ENABLE_STRIKETHROUGH);
     let parser = Parser::new_ext(input, options);
 
-    let mut renderer = Renderer::new(output)?;
+    let mut renderer = Renderer::new(output);
     let mut code_formats: Vec<String> = Vec::new();
     let mut lists: Vec<Option<u64>> = Vec::new();
     for (event, _) in parser.into_offset_iter() {
@@ -262,14 +262,13 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<(), io::Error>
                 renderer.write("\n\n")?;
             }
             Event::Rule => {
-                renderer.cut()?;
+                renderer.cut();
             }
             Event::TaskListMarker(_checked) => {}
         }
     }
 
-    renderer.cut()?;
-
+    renderer.cut();
     renderer.print()?;
 
     Ok(())

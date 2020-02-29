@@ -76,7 +76,7 @@ struct LineChar {
 }
 
 impl<F: Read + Write> Renderer<F> {
-    pub fn new(device: F) -> Result<Self, io::Error> {
+    pub fn new(device: F) -> Self {
         let mut renderer = Renderer::<F> {
             device,
             buf: Vec::new(),
@@ -88,8 +88,8 @@ impl<F: Read + Write> Renderer<F> {
             word_has_letters: false,
         };
         // Reset printer
-        renderer.send(b"\x1b@")?;
-        Ok(renderer)
+        renderer.spool(b"\x1b@");
+        renderer
     }
 
     pub fn format(&self) -> Rc<Format> {
@@ -105,18 +105,17 @@ impl<F: Read + Write> Renderer<F> {
         self.format = self.stack.pop().expect("tried to unwind the root Format");
     }
 
-    fn set_printer_format(&mut self, format: &Format) -> Result<(), io::Error> {
-        self.send(b"\x1b!")?;
-        self.send(&[format.flags.bits])?;
-        self.send(b"\x1b3")?;
-        self.send(&[format.line_spacing])?;
-        self.send(b"\x1br")?;
-        self.send(&[format.red as u8])?;
-        self.send(b"\x1bU")?;
-        self.send(&[format.unidirectional as u8])?;
-        self.send(b"\x1ba")?;
-        self.send(&[format.justification as u8])?;
-        Ok(())
+    fn set_printer_format(&mut self, format: &Format) {
+        self.spool(b"\x1b!");
+        self.spool(&[format.flags.bits]);
+        self.spool(b"\x1b3");
+        self.spool(&[format.line_spacing]);
+        self.spool(b"\x1br");
+        self.spool(&[format.red as u8]);
+        self.spool(b"\x1bU");
+        self.spool(&[format.unidirectional as u8]);
+        self.spool(b"\x1ba");
+        self.spool(&[format.justification as u8]);
     }
 
     pub fn write(&mut self, contents: &str) -> Result<(), io::Error> {
@@ -127,11 +126,11 @@ impl<F: Read + Write> Renderer<F> {
             // Got to the next word break?  Write out the word.
             if self.word_has_letters && (*byte == b'\n' || *byte == b' ') {
                 // Start a new word.
-                self.write_word()?;
+                self.write_word();
             }
             // Hard line break?  Send it and move on.
             if *byte == b'\n' {
-                self.send_line()?;
+                self.spool_line();
                 continue;
             }
             // Map control sequences other than \n
@@ -151,7 +150,7 @@ impl<F: Read + Write> Renderer<F> {
         Ok(())
     }
 
-    fn write_word(&mut self) -> Result<(), io::Error> {
+    fn write_word(&mut self) {
         let width = self
             .word
             .iter()
@@ -161,7 +160,7 @@ impl<F: Read + Write> Renderer<F> {
         // a new line.
         let soft_wrapped =
             if width <= LINE_PIXELS_TEXT && self.line_width + width > LINE_PIXELS_TEXT {
-                self.send_line()?;
+                self.spool_line();
                 true
             } else {
                 false
@@ -180,7 +179,7 @@ impl<F: Read + Write> Renderer<F> {
             // If we've reached the end of the line just within this word,
             // just break in the middle of the word.
             if self.line_width + char_width > LINE_PIXELS_TEXT {
-                self.send_line()?;
+                self.spool_line();
             }
 
             // Add indent if at the beginning of the line
@@ -200,13 +199,12 @@ impl<F: Read + Write> Renderer<F> {
 
         self.word.clear();
         self.word_has_letters = false;
-        Ok(())
     }
 
     pub fn write_image(&mut self, image: &GrayImage) -> Result<(), io::Error> {
         // Flush line buffer if non-empty
         if self.line_width > 0 {
-            self.send_line()?;
+            self.spool_line();
         }
 
         self.set_format(
@@ -244,7 +242,7 @@ impl<F: Read + Write> Renderer<F> {
                 });
             }
             self.line_width += image.width() as usize;
-            self.send_line()?;
+            self.spool_line();
         }
 
         // Restore print mode
@@ -254,11 +252,11 @@ impl<F: Read + Write> Renderer<F> {
     }
 
     // Advance paper and perform partial cut
-    pub fn cut(&mut self) -> Result<(), io::Error> {
-        self.send(b"\x1dV\x42\x68")
+    pub fn cut(&mut self) {
+        self.spool(b"\x1dV\x42\x68")
     }
 
-    fn send_line(&mut self) -> Result<(), io::Error> {
+    fn spool_line(&mut self) {
         for pass in PASSES.iter() {
             if !self.active_for_line(pass) {
                 continue;
@@ -266,23 +264,21 @@ impl<F: Read + Write> Renderer<F> {
             // active_for_line() returned true, so there is at least one LineChar
             let mut format = self.line[0].format.clone();
             let mut active = (pass.active)(&format);
-            self.set_printer_format(&(pass.format_map)((*format).clone(), active))?;
+            self.set_printer_format(&(pass.format_map)((*format).clone(), active));
             for lc in self.line.clone().iter() {
                 if *format != *lc.format {
                     format = lc.format.clone();
                     active = (pass.active)(&format);
-                    self.set_printer_format(&(pass.format_map)((*format).clone(), active))?;
+                    self.set_printer_format(&(pass.format_map)((*format).clone(), active));
                 }
-                self.send(&(pass.char_map)(lc.char, &format, active))?;
+                self.spool(&(pass.char_map)(lc.char, &format, active));
             }
-            self.send(b"\r")?;
+            self.spool(b"\r");
         }
-        self.send(b"\n")?;
+        self.spool(b"\n");
 
         self.line.clear();
         self.line_width = 0;
-
-        Ok(())
     }
 
     fn active_for_line(&self, pass: &LinePass) -> bool {
@@ -294,9 +290,8 @@ impl<F: Read + Write> Renderer<F> {
         false
     }
 
-    fn send(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+    fn spool(&mut self, buf: &[u8]) {
         self.buf.extend_from_slice(buf);
-        Ok(())
     }
 
     pub fn print(&mut self) -> Result<(), io::Error> {
