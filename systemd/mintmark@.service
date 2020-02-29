@@ -22,4 +22,4 @@ RestrictRealtime=true
 RestrictSUIDSGID=true
 StandardInput=socket
 StandardOutput=null
-StandardError=journal
+StandardError=socket
