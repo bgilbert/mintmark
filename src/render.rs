@@ -22,7 +22,6 @@ use std::convert::TryFrom;
 use std::io::{self, Read, Write};
 use std::rc::Rc;
 
-#[allow(dead_code)]
 const LINE_PIXELS_IMAGE: usize = 200;
 const LINE_PIXELS_TEXT: usize = 320;
 
@@ -202,6 +201,17 @@ impl<F: Read + Write> Renderer<F> {
     }
 
     pub fn write_image(&mut self, image: &GrayImage) -> Result<(), io::Error> {
+        if image.width() as usize > LINE_PIXELS_IMAGE {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "Image width {} larger than maximum {}",
+                    image.width(),
+                    LINE_PIXELS_IMAGE
+                ),
+            ));
+        }
+
         // Flush line buffer if non-empty
         if self.line_width > 0 {
             self.spool_line();
