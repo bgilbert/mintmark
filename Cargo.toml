@@ -16,6 +16,6 @@ barcoders = "1.0.1"
 bitflags = "1.2.1"
 clap = "2.33.0"
 encoding = "0.2.33"
-image = { version = "0.23.0", default-features = false }
+image = { version = "0.23.1", default-features = false }
 pulldown-cmark = "0.7.0"
 qrcode = { version = "0.11", default-features = false }
