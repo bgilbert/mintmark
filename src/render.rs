@@ -263,7 +263,12 @@ impl<F: Read + Write> Renderer<F> {
 
     // Advance paper and perform partial cut
     pub fn cut(&mut self) {
-        self.spool(b"\x1dV\x42\x68")
+        // Flush line buffer if non-empty
+        if self.line_width > 0 {
+            self.spool_line();
+        }
+
+        self.spool(b"\x1dV\x42\x50")
     }
 
     fn spool_line(&mut self) {
