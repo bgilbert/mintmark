@@ -2,6 +2,8 @@
 
 Driver for an Epson TM-U220B receipt printer, taking Markdown as input.
 
+[![Build Status](https://travis-ci.org/bgilbert/mintmark.svg?branch=master)](https://travis-ci.org/bgilbert/mintmark)
+
 ## Usage
 
 ```sh
