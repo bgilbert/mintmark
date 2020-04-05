@@ -18,11 +18,12 @@ mod render;
 
 use barcoders::sym::code128::Code128;
 use clap::{crate_version, App, Arg};
+use fs2::FileExt;
 use image::GrayImage;
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag};
 use qrcode::{EcLevel, QrCode};
 use std::convert::TryInto;
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 
 use render::{FormatFlags, Justification, Renderer};
@@ -31,6 +32,12 @@ fn main() -> Result<(), io::Error> {
     let args = App::new("mintmark")
         .version(crate_version!())
         .about("Print Markdown to an Epson TM-U220B receipt printer.")
+        .arg(
+            Arg::with_name("lockfile")
+                .long("--lock-file")
+                .value_name("PATH")
+                .help("lock file for coordinating exclusive access"),
+        )
         .arg(
             Arg::with_name("device")
                 .value_name("DEVICE-PATH")
@@ -45,6 +52,14 @@ fn main() -> Result<(), io::Error> {
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     let device = args.value_of("device").unwrap();
+    let _lockfile = args
+        .value_of("lockfile")
+        .map(|path| -> Result<File, io::Error> {
+            let file = OpenOptions::new().create(true).write(true).open(path)?;
+            file.lock_exclusive()?;
+            Ok(file)
+        })
+        .transpose()?;
     let mut output = OpenOptions::new().read(true).write(true).open(device)?;
 
     render(&input, &mut output)

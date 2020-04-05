@@ -5,7 +5,7 @@ RefuseManualStart=true
 [Service]
 Type=simple
 Environment=MINTMARK_DEVICE=/dev/usb/lp0
-ExecStart=/usr/bin/flock --close ${RUNTIME_DIRECTORY}/lock mintmark ${MINTMARK_DEVICE}
+ExecStart=mintmark --lock-file ${RUNTIME_DIRECTORY}/lock ${MINTMARK_DEVICE}
 User=mintmark
 Group=lp
 NoNewPrivileges=true
