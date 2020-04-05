@@ -168,7 +168,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "mintmark"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "barcoders 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
