@@ -2,6 +2,8 @@
 
 Driver for an Epson TM-U220B receipt printer, taking Markdown as input.
 
+[![License](https://img.shields.io/crates/l/mintmark)](https://github.com/bgilbert/mintmark/blob/master/LICENSE)
+[![Crate](https://img.shields.io/crates/v/mintmark)](https://crates.io/crates/mintmark)
 [![Build Status](https://travis-ci.org/bgilbert/mintmark.svg?branch=master)](https://travis-ci.org/bgilbert/mintmark)
 
 ## Usage
