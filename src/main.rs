@@ -33,6 +33,12 @@ fn main() -> Result<(), io::Error> {
         .version(crate_version!())
         .about("Print Markdown to an Epson TM-U220B receipt printer.")
         .arg(
+            Arg::with_name("file")
+                .long("--file")
+                .value_name("PATH")
+                .help("input file (default: stdin)"),
+        )
+        .arg(
             Arg::with_name("lockfile")
                 .long("--lock-file")
                 .value_name("PATH")
@@ -47,7 +53,13 @@ fn main() -> Result<(), io::Error> {
         .get_matches();
 
     let mut input_bytes: Vec<u8> = Vec::new();
-    io::stdin().lock().read_to_end(&mut input_bytes)?;
+    match args.value_of("file") {
+        Some(path) => OpenOptions::new()
+            .read(true)
+            .open(path)?
+            .read_to_end(&mut input_bytes)?,
+        None => io::stdin().lock().read_to_end(&mut input_bytes)?,
+    };
     let input = std::str::from_utf8(&input_bytes)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
