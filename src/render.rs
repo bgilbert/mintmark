@@ -132,8 +132,8 @@ impl<F: Read + Write> Renderer<F> {
                 self.spool_line();
                 continue;
             }
-            // Map control sequences other than \n
-            if *byte < 0x20 || *byte > 0x7e {
+            // Map other control sequences other than \t
+            if (*byte < 0x20 || *byte > 0x7e) && *byte != b'\t' {
                 *byte = b'?';
             }
             // Printables and spaces go in the word.  Once we have at
