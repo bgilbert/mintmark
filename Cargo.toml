@@ -15,7 +15,7 @@ exclude = [
 [dependencies]
 barcoders = "1.0.1"
 bitflags = "1.2.1"
-clap = "2.33.2"
+clap = "2.33.3"
 encoding = "0.2.33"
 fs2 = "0.4.3"
 image = { version = "0.23.8", default-features = false }
