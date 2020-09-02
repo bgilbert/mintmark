@@ -19,5 +19,5 @@ clap = "2.33.3"
 encoding = "0.2.33"
 fs2 = "0.4.3"
 image = { version = "0.23.9", default-features = false }
-pulldown-cmark = "0.7.2"
+pulldown-cmark = "0.8.0"
 qrcode = { version = "0.12", default-features = false }
