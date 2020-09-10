@@ -13,7 +13,7 @@ exclude = [
 ]
 
 [dependencies]
-barcoders = "1.0.1"
+barcoders = "1.0.2"
 bitflags = "1.2.1"
 clap = "2.33.3"
 encoding = "0.2.33"
