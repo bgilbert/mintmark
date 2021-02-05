@@ -8,20 +8,23 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  PINNED_TOOLCHAIN: 1.49.0
 
 jobs:
   test:
     strategy:
       matrix:
         rust:
-          - ${{ env.PINNED_TOOLCHAIN }}
           - stable
           - beta
         experimental: [false]
+        pinned: [false]
         include:
           - rust: nightly
             experimental: true
+            pinned: false
+          - rust: 1.49.0
+            experimental: false
+            pinned: true
     name: Tests (${{ matrix.rust }})
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.experimental }}
@@ -40,7 +43,7 @@ jobs:
         run: cargo test --verbose --all
       - name: rustfmt check
         run: cargo fmt -- --check -l
-        if: ${{ matrix.rust }} == ${{ env.PINNED_TOOLCHAIN }}
+        if: ${{ matrix.pinned }}
       - name: Clippy
         run: cargo clippy -- -D warnings
-        if: ${{ matrix.rust }} == ${{ env.PINNED_TOOLCHAIN }}
+        if: ${{ matrix.pinned }}
