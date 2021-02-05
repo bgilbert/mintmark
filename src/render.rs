@@ -422,9 +422,7 @@ fn strikethrough_char_map(_char: u8, format: &Format, active: bool) -> Vec<u8> {
     if active {
         let char_width = format.char_overstrike_width();
         let mut ret = bit_image_prologue(char_width).expect("overstrike width larger than u16");
-        for _ in 0..char_width {
-            ret.push(0x08);
-        }
+        ret.resize(ret.len() + char_width, 0x08);
         ret
     } else {
         vec![b' ']

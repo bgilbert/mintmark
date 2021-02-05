@@ -386,8 +386,7 @@ fn write_code128<F: Read + Write>(
             image.get_pixel_mut(
                 x.try_into()
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-                y.try_into()
-                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+                y,
             )[0] = if *value > 0 { 0 } else { 255 };
         }
     }
