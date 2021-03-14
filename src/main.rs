@@ -16,6 +16,7 @@
 
 mod render;
 
+use anyhow::{Context, Result};
 use barcoders::sym::code128::Code128;
 use clap::{crate_version, App, Arg};
 use fs2::FileExt;
@@ -28,7 +29,7 @@ use std::io::{self, Read, Write};
 
 use render::{FormatFlags, Justification, Renderer};
 
-fn main() -> Result<(), io::Error> {
+fn main() -> Result<()> {
     let args = App::new("mintmark")
         .version(crate_version!())
         .about("Print Markdown to an Epson TM-U220B receipt printer.")
@@ -56,28 +57,40 @@ fn main() -> Result<(), io::Error> {
     match args.value_of("file") {
         Some(path) => OpenOptions::new()
             .read(true)
-            .open(path)?
-            .read_to_end(&mut input_bytes)?,
-        None => io::stdin().lock().read_to_end(&mut input_bytes)?,
+            .open(path)
+            .context("opening input file")?
+            .read_to_end(&mut input_bytes)
+            .context("reading input file")?,
+        None => io::stdin()
+            .lock()
+            .read_to_end(&mut input_bytes)
+            .context("reading stdin")?,
     };
-    let input = std::str::from_utf8(&input_bytes)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let input = std::str::from_utf8(&input_bytes).context("couldn't decode input")?;
 
     let device = args.value_of("device").unwrap();
     let _lockfile = args
         .value_of("lockfile")
-        .map(|path| -> Result<File, io::Error> {
-            let file = OpenOptions::new().create(true).write(true).open(path)?;
-            file.lock_exclusive()?;
+        .map(|path| -> Result<File> {
+            let file = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .open(path)
+                .context("opening lockfile")?;
+            file.lock_exclusive().context("locking lockfile")?;
             Ok(file)
         })
         .transpose()?;
-    let mut output = OpenOptions::new().read(true).write(true).open(device)?;
+    let mut output = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(device)
+        .context("opening output")?;
 
     render(&input, &mut output)
 }
 
-fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<(), io::Error> {
+fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_STRIKETHROUGH);
     let parser = Parser::new_ext(input, options);
@@ -301,19 +314,12 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<(), io::Error>
     Ok(())
 }
 
-fn write_image<F: Read + Write>(
-    renderer: &mut Renderer<F>,
-    contents: &str,
-) -> Result<(), io::Error> {
+fn write_image<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) -> Result<()> {
     let width = contents.split('\n').fold(0, |acc, l| acc.max(l.len()));
     let height = contents.split('\n').count();
     let mut image = GrayImage::new(
-        width
-            .try_into()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-        height
-            .try_into()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        width.try_into().context("invalid image width")?,
+        height.try_into().context("invalid image height")?,
     );
     for pixel in image.pixels_mut() {
         pixel[0] = 255;
@@ -321,23 +327,18 @@ fn write_image<F: Read + Write>(
     for (y, row) in contents.split('\n').enumerate() {
         for (x, value) in row.chars().enumerate() {
             image.get_pixel_mut(
-                x.try_into()
-                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-                y.try_into()
-                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+                x.try_into().context("invalid X coordinate")?,
+                y.try_into().context("invalid Y coordinate")?,
             )[0] = if value != ' ' { 0 } else { 255 };
         }
     }
     renderer.write_image(&image)
 }
 
-fn write_qrcode<F: Read + Write>(
-    renderer: &mut Renderer<F>,
-    contents: &str,
-) -> Result<(), io::Error> {
+fn write_qrcode<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) -> Result<()> {
     // Build code
     let code = QrCode::with_error_correction_level(&contents.as_bytes(), EcLevel::L)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
+        .context("creating QR code")?;
     // qrcode is supposed to be able to generate an Image directly,
     // but that doesn't work.  Take the long way around.
     // https://github.com/kennytm/qrcode-rust/issues/19
@@ -351,12 +352,8 @@ fn write_qrcode<F: Read + Write>(
     let height = image_str_with_newlines.len() - image_str.len() + 1;
     let width = image_str.len() / height;
     let mut image = GrayImage::new(
-        width
-            .try_into()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-        height
-            .try_into()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        width.try_into().context("invalid QR code width")?,
+        height.try_into().context("invalid QR code height")?,
     );
     for (item, pixel) in image_str.chars().zip(image.pixels_mut()) {
         pixel[0] = if item == '#' { 0 } else { 255 };
@@ -365,29 +362,18 @@ fn write_qrcode<F: Read + Write>(
     renderer.write_image(&image)
 }
 
-fn write_code128<F: Read + Write>(
-    renderer: &mut Renderer<F>,
-    contents: &str,
-) -> Result<(), io::Error> {
+fn write_code128<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) -> Result<()> {
     // Build code, character set B
     let data = Code128::new(format!("\u{0181}{}", contents))
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?
+        .context("creating barcode")?
         .encode();
     // The barcoders image feature pulls in image format support, which is
     // large.  Handle the conversion ourselves.
-    let mut image = GrayImage::new(
-        data.len()
-            .try_into()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-        24,
-    );
+    let mut image = GrayImage::new(data.len().try_into().context("barcode size overflow")?, 24);
     for (x, value) in data.iter().enumerate() {
         for y in 0..image.height() {
-            image.get_pixel_mut(
-                x.try_into()
-                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-                y,
-            )[0] = if *value > 0 { 0 } else { 255 };
+            image.get_pixel_mut(x.try_into().context("invalid X coordinate")?, y)[0] =
+                if *value > 0 { 0 } else { 255 };
         }
     }
     renderer.write_image(&image)

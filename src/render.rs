@@ -14,12 +14,13 @@
  * limitations under the License.
 */
 
+use anyhow::{anyhow, bail, Context, Result};
 use bitflags::bitflags;
 use encoding::all::ASCII;
 use encoding::types::{EncoderTrap, Encoding};
 use image::{GrayImage, Luma};
 use std::convert::TryFrom;
-use std::io::{self, Read, Write};
+use std::io::{Read, Write};
 use std::rc::Rc;
 
 const LINE_PIXELS_IMAGE: usize = 200;
@@ -117,10 +118,10 @@ impl<F: Read + Write> Renderer<F> {
         self.spool(&[format.justification as u8]);
     }
 
-    pub fn write(&mut self, contents: &str) -> Result<(), io::Error> {
+    pub fn write(&mut self, contents: &str) -> Result<()> {
         let mut bytes = ASCII
             .encode(contents, EncoderTrap::Replace)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
+            .map_err(|e| anyhow!(e).context("encoding text"))?;
         for byte in &mut bytes {
             // Got to the next word break?  Write out the word.
             if self.word_has_letters && (*byte == b'\n' || *byte == b' ') {
@@ -200,16 +201,13 @@ impl<F: Read + Write> Renderer<F> {
         self.word_has_letters = false;
     }
 
-    pub fn write_image(&mut self, image: &GrayImage) -> Result<(), io::Error> {
+    pub fn write_image(&mut self, image: &GrayImage) -> Result<()> {
         if image.width() as usize > LINE_PIXELS_IMAGE {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "Image width {} larger than maximum {}",
-                    image.width(),
-                    LINE_PIXELS_IMAGE
-                ),
-            ));
+            bail!(
+                "Image width {} larger than maximum {}",
+                image.width(),
+                LINE_PIXELS_IMAGE
+            );
         }
 
         // Flush line buffer if non-empty
@@ -309,8 +307,10 @@ impl<F: Read + Write> Renderer<F> {
         self.buf.extend_from_slice(buf);
     }
 
-    pub fn print(&mut self) -> Result<(), io::Error> {
-        self.device.write_all(&self.buf)?;
+    pub fn print(&mut self) -> Result<()> {
+        self.device
+            .write_all(&self.buf)
+            .context("writing to device")?;
         self.buf.clear();
         Ok(())
     }
@@ -402,9 +402,8 @@ impl Format {
     }
 }
 
-fn bit_image_prologue(width: usize) -> Result<Vec<u8>, io::Error> {
-    let width_u16 = u16::try_from(width)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
+fn bit_image_prologue(width: usize) -> Result<Vec<u8>> {
+    let width_u16 = u16::try_from(width).context("bit image width too large")?;
     let width_bytes = &width_u16.to_le_bytes();
     // Bit image mode 0, vert 72 dpi, horz 80 dpi, width 200 dots
     Ok(vec![0x1b, b'*', 0, width_bytes[0], width_bytes[1]])
