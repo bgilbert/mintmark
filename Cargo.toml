@@ -8,8 +8,7 @@ description = "Markdown renderer for Epson TM-U220B receipt printers"
 readme = "README.md"
 repository = "https://github.com/bgilbert/mintmark"
 exclude = [
-    ".gitignore",
-    ".travis.yml"
+    ".gitignore"
 ]
 
 [dependencies]
