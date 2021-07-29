@@ -25,7 +25,7 @@ jobs:
           - rust: nightly
             experimental: true
             pinned: false
-          - rust: 1.49.0
+          - rust: 1.53.0
             experimental: false
             pinned: true
     name: Tests (${{ matrix.rust }})
