@@ -18,7 +18,6 @@ mod render;
 
 use anyhow::{Context, Result};
 use barcoders::sym::code128::Code128;
-use clap::{crate_version, App, Arg};
 use fs2::FileExt;
 use image::GrayImage;
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag};
@@ -26,35 +25,29 @@ use qrcode::{EcLevel, QrCode};
 use std::convert::TryInto;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
+use structopt::StructOpt;
 
 use render::{FormatFlags, Justification, Renderer};
 
+/// Print Markdown to an Epson TM-U220B receipt printer.
+#[derive(Debug, StructOpt)]
+struct Opts {
+    /// input file (default: stdin)
+    #[structopt(long, value_name = "PATH")]
+    file: Option<String>,
+    /// lock file for coordinating exclusive access
+    #[structopt(long, value_name = "PATH")]
+    lock_file: Option<String>,
+    /// path to the character device node
+    #[structopt(value_name = "DEVICE-PATH")]
+    device: String,
+}
+
 fn main() -> Result<()> {
-    let args = App::new("mintmark")
-        .version(crate_version!())
-        .about("Print Markdown to an Epson TM-U220B receipt printer.")
-        .arg(
-            Arg::with_name("file")
-                .long("--file")
-                .value_name("PATH")
-                .help("input file (default: stdin)"),
-        )
-        .arg(
-            Arg::with_name("lockfile")
-                .long("--lock-file")
-                .value_name("PATH")
-                .help("lock file for coordinating exclusive access"),
-        )
-        .arg(
-            Arg::with_name("device")
-                .value_name("DEVICE-PATH")
-                .required(true)
-                .help("path to the character device node"),
-        )
-        .get_matches();
+    let opts = Opts::from_args();
 
     let mut input_bytes: Vec<u8> = Vec::new();
-    match args.value_of("file") {
+    match opts.file {
         Some(path) => OpenOptions::new()
             .read(true)
             .open(path)
@@ -68,9 +61,8 @@ fn main() -> Result<()> {
     };
     let input = std::str::from_utf8(&input_bytes).context("couldn't decode input")?;
 
-    let device = args.value_of("device").unwrap();
-    let _lockfile = args
-        .value_of("lockfile")
+    let _lockfile = opts
+        .lock_file
         .map(|path| -> Result<File> {
             let file = OpenOptions::new()
                 .create(true)
@@ -84,7 +76,7 @@ fn main() -> Result<()> {
     let mut output = OpenOptions::new()
         .read(true)
         .write(true)
-        .open(device)
+        .open(opts.device)
         .context("opening output")?;
 
     render(&input, &mut output)
