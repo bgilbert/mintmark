@@ -79,7 +79,7 @@ fn main() -> Result<()> {
         .open(opts.device)
         .context("opening output")?;
 
-    render(&input, &mut output)
+    render(input, &mut output)
 }
 
 fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
@@ -267,13 +267,13 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
             Event::Text(contents) => {
                 match code_formats.last().unwrap_or(&"".to_string()).as_str() {
                     "image" => {
-                        write_image(&mut renderer, &contents.trim_end_matches('\n'))?;
+                        write_image(&mut renderer, contents.trim_end_matches('\n'))?;
                     }
                     "qrcode" => {
-                        write_qrcode(&mut renderer, &contents.trim())?;
+                        write_qrcode(&mut renderer, contents.trim())?;
                     }
                     "code128" => {
-                        write_code128(&mut renderer, &contents.trim())?;
+                        write_code128(&mut renderer, contents.trim())?;
                     }
                     _ => {
                         renderer.write(&contents)?;
