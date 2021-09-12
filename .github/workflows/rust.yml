@@ -19,18 +19,14 @@ jobs:
         rust:
           - stable
           - beta
-        experimental: [false]
+          - nightly
         pinned: [false]
         include:
-          - rust: nightly
-            experimental: true
-            pinned: false
           - rust: 1.53.0
-            experimental: false
             pinned: true
     name: Tests (${{ matrix.rust }})
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.experimental }}
+    continue-on-error: ${{ matrix.rust == 'nightly' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v2
@@ -46,7 +42,7 @@ jobs:
         run: cargo test --verbose --all
       - name: rustfmt check
         run: cargo fmt -- --check -l
-        if: ${{ matrix.pinned }}
+        if: matrix.pinned
       - name: Clippy
         run: cargo clippy -- -D warnings
-        if: ${{ matrix.pinned }}
+        if: matrix.pinned
