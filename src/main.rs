@@ -22,7 +22,6 @@ use fs2::FileExt;
 use image::GrayImage;
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag};
 use qrcode::{EcLevel, QrCode};
-use std::convert::TryInto;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use structopt::StructOpt;
