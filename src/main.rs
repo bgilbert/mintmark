@@ -18,35 +18,36 @@ mod render;
 
 use anyhow::{Context, Result};
 use barcoders::sym::code128::Code128;
+use clap::Parser as ClapParser;
 use fs2::FileExt;
 use image::GrayImage;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag};
 use qrcode::{EcLevel, QrCode};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
-use structopt::StructOpt;
 
 use render::{FormatFlags, Justification, Renderer};
 
-/// Print Markdown to an Epson TM-U220B receipt printer.
-#[derive(Debug, StructOpt)]
-struct Opts {
-    /// input file (default: stdin)
-    #[structopt(long, value_name = "PATH")]
+/// Print Markdown to an Epson TM-U220B receipt printer
+#[derive(Debug, ClapParser)]
+#[command(version)]
+struct Args {
+    /// Input file (default: stdin)
+    #[arg(long, value_name = "PATH")]
     file: Option<String>,
-    /// lock file for coordinating exclusive access
-    #[structopt(long, value_name = "PATH")]
+    /// Lock file for coordinating exclusive access
+    #[arg(long, value_name = "PATH")]
     lock_file: Option<String>,
-    /// path to the character device node
-    #[structopt(value_name = "DEVICE-PATH")]
+    /// Path to the character device node
+    #[arg(value_name = "DEVICE-PATH")]
     device: String,
 }
 
 fn main() -> Result<()> {
-    let opts = Opts::from_args();
+    let args = Args::parse();
 
     let mut input_bytes: Vec<u8> = Vec::new();
-    match opts.file {
+    match args.file {
         Some(path) => OpenOptions::new()
             .read(true)
             .open(path)
@@ -60,7 +61,7 @@ fn main() -> Result<()> {
     };
     let input = std::str::from_utf8(&input_bytes).context("couldn't decode input")?;
 
-    let _lockfile = opts
+    let _lockfile = args
         .lock_file
         .map(|path| -> Result<File> {
             let file = OpenOptions::new()
@@ -75,7 +76,7 @@ fn main() -> Result<()> {
     let mut output = OpenOptions::new()
         .read(true)
         .write(true)
-        .open(opts.device)
+        .open(args.device)
         .context("opening output")?;
 
     render(input, &mut output)
@@ -368,4 +369,15 @@ fn write_code128<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) ->
         }
     }
     renderer.write_image(&image)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clap() {
+        use clap::CommandFactory;
+        Args::command().debug_assert()
+    }
 }
