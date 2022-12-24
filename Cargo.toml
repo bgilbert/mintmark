@@ -7,7 +7,7 @@ license = "Apache-2.0"
 description = "Markdown renderer for Epson TM-U220B receipt printers"
 readme = "README.md"
 repository = "https://github.com/bgilbert/mintmark"
-rust-version = "1.56"
+rust-version = "1.61"
 exclude = [
     ".github",
     ".gitignore"
@@ -19,7 +19,7 @@ barcoders = "1.0.2"
 bitflags = "1.3.2"
 encoding = "0.2.33"
 fs2 = "0.4.3"
-image = { version = "0.23.14", default-features = false }
+image = { version = "0.24.5", default-features = false }
 pulldown-cmark = "0.8.0"
 qrcode = { version = "0.12", default-features = false }
 structopt = "0.3.26"
