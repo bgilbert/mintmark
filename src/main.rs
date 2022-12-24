@@ -25,6 +25,7 @@ use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag};
 use qrcode::{EcLevel, QrCode};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
+use std::path::PathBuf;
 
 use render::{FormatFlags, Justification, Renderer};
 
@@ -34,13 +35,13 @@ use render::{FormatFlags, Justification, Renderer};
 struct Args {
     /// Input file (default: stdin)
     #[arg(long, value_name = "PATH")]
-    file: Option<String>,
+    file: Option<PathBuf>,
     /// Lock file for coordinating exclusive access
     #[arg(long, value_name = "PATH")]
-    lock_file: Option<String>,
+    lock_file: Option<PathBuf>,
     /// Path to the character device node
     #[arg(value_name = "DEVICE-PATH")]
-    device: String,
+    device: PathBuf,
 }
 
 fn main() -> Result<()> {
