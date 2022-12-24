@@ -20,7 +20,7 @@ use anyhow::{Context, Result};
 use barcoders::sym::code128::Code128;
 use fs2::FileExt;
 use image::GrayImage;
-use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag};
+use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag};
 use qrcode::{EcLevel, QrCode};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -94,15 +94,15 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
             Event::Start(tag) => {
                 match tag {
                     Tag::Paragraph => {}
-                    Tag::Heading(size) => {
+                    Tag::Heading(level, _, _) => {
                         // Center first.  This only takes effect at the
                         // start of the line, so end tag handling needs to
                         // specially account for it.
                         renderer.set_format(
                             renderer.format().with_justification(Justification::Center),
                         );
-                        match size {
-                            1 => {
+                        match level {
+                            HeadingLevel::H1 => {
                                 renderer.set_format(
                                     renderer.format().with_unidirectional(true).with_flags(
                                         FormatFlags::DOUBLE_HEIGHT
@@ -112,7 +112,7 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
                                     ),
                                 );
                             }
-                            2 => {
+                            HeadingLevel::H2 => {
                                 renderer.set_format(
                                     renderer.format().with_unidirectional(true).with_flags(
                                         FormatFlags::DOUBLE_HEIGHT
@@ -121,7 +121,7 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
                                     ),
                                 );
                             }
-                            3 => {
+                            HeadingLevel::H3 => {
                                 renderer.set_format(
                                     renderer
                                         .format()
@@ -131,7 +131,7 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
                                         .without_flags(FormatFlags::NARROW),
                                 );
                             }
-                            4 => {
+                            HeadingLevel::H4 => {
                                 renderer.set_format(
                                     renderer
                                         .format()
@@ -139,7 +139,7 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
                                         .without_flags(FormatFlags::NARROW),
                                 );
                             }
-                            5 => {
+                            HeadingLevel::H5 => {
                                 renderer.set_format(
                                     renderer.format().with_flags(
                                         FormatFlags::EMPHASIZED | FormatFlags::UNDERLINE,
@@ -212,7 +212,7 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
                 Tag::Paragraph => {
                     renderer.write("\n\n")?;
                 }
-                Tag::Heading(_) => {
+                Tag::Heading(_, _, _) => {
                     // peel off everything but the centering command
                     renderer.restore_format();
                     renderer.write("\n\n")?;
