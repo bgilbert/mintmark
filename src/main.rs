@@ -18,36 +18,37 @@ mod render;
 
 use anyhow::{Context, Result};
 use barcoders::sym::code128::Code128;
+use clap::Parser as ClapParser;
 use fs2::FileExt;
 use image::GrayImage;
-use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag};
+use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag};
 use qrcode::{EcLevel, QrCode};
-use std::convert::TryInto;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
-use structopt::StructOpt;
+use std::path::PathBuf;
 
 use render::{FormatFlags, Justification, Renderer};
 
-/// Print Markdown to an Epson TM-U220B receipt printer.
-#[derive(Debug, StructOpt)]
-struct Opts {
-    /// input file (default: stdin)
-    #[structopt(long, value_name = "PATH")]
-    file: Option<String>,
-    /// lock file for coordinating exclusive access
-    #[structopt(long, value_name = "PATH")]
-    lock_file: Option<String>,
-    /// path to the character device node
-    #[structopt(value_name = "DEVICE-PATH")]
-    device: String,
+/// Print Markdown to an Epson TM-U220B receipt printer
+#[derive(Debug, ClapParser)]
+#[command(version)]
+struct Args {
+    /// Input file (default: stdin)
+    #[arg(long, value_name = "PATH")]
+    file: Option<PathBuf>,
+    /// Lock file for coordinating exclusive access
+    #[arg(long, value_name = "PATH")]
+    lock_file: Option<PathBuf>,
+    /// Path to the character device node
+    #[arg(value_name = "DEVICE-PATH")]
+    device: PathBuf,
 }
 
 fn main() -> Result<()> {
-    let opts = Opts::from_args();
+    let args = Args::parse();
 
     let mut input_bytes: Vec<u8> = Vec::new();
-    match opts.file {
+    match args.file {
         Some(path) => OpenOptions::new()
             .read(true)
             .open(path)
@@ -61,7 +62,7 @@ fn main() -> Result<()> {
     };
     let input = std::str::from_utf8(&input_bytes).context("couldn't decode input")?;
 
-    let _lockfile = opts
+    let _lockfile = args
         .lock_file
         .map(|path| -> Result<File> {
             let file = OpenOptions::new()
@@ -76,7 +77,7 @@ fn main() -> Result<()> {
     let mut output = OpenOptions::new()
         .read(true)
         .write(true)
-        .open(opts.device)
+        .open(args.device)
         .context("opening output")?;
 
     render(input, &mut output)
@@ -95,15 +96,15 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
             Event::Start(tag) => {
                 match tag {
                     Tag::Paragraph => {}
-                    Tag::Heading(size) => {
+                    Tag::Heading(level, _, _) => {
                         // Center first.  This only takes effect at the
                         // start of the line, so end tag handling needs to
                         // specially account for it.
                         renderer.set_format(
                             renderer.format().with_justification(Justification::Center),
                         );
-                        match size {
-                            1 => {
+                        match level {
+                            HeadingLevel::H1 => {
                                 renderer.set_format(
                                     renderer.format().with_unidirectional(true).with_flags(
                                         FormatFlags::DOUBLE_HEIGHT
@@ -113,7 +114,7 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
                                     ),
                                 );
                             }
-                            2 => {
+                            HeadingLevel::H2 => {
                                 renderer.set_format(
                                     renderer.format().with_unidirectional(true).with_flags(
                                         FormatFlags::DOUBLE_HEIGHT
@@ -122,7 +123,7 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
                                     ),
                                 );
                             }
-                            3 => {
+                            HeadingLevel::H3 => {
                                 renderer.set_format(
                                     renderer
                                         .format()
@@ -132,7 +133,7 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
                                         .without_flags(FormatFlags::NARROW),
                                 );
                             }
-                            4 => {
+                            HeadingLevel::H4 => {
                                 renderer.set_format(
                                     renderer
                                         .format()
@@ -140,7 +141,7 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
                                         .without_flags(FormatFlags::NARROW),
                                 );
                             }
-                            5 => {
+                            HeadingLevel::H5 => {
                                 renderer.set_format(
                                     renderer.format().with_flags(
                                         FormatFlags::EMPHASIZED | FormatFlags::UNDERLINE,
@@ -213,7 +214,7 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
                 Tag::Paragraph => {
                     renderer.write("\n\n")?;
                 }
-                Tag::Heading(_) => {
+                Tag::Heading(_, _, _) => {
                     // peel off everything but the centering command
                     renderer.restore_format();
                     renderer.write("\n\n")?;
@@ -329,7 +330,7 @@ fn write_image<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) -> R
 
 fn write_qrcode<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) -> Result<()> {
     // Build code
-    let code = QrCode::with_error_correction_level(&contents.as_bytes(), EcLevel::L)
+    let code = QrCode::with_error_correction_level(contents.as_bytes(), EcLevel::L)
         .context("creating QR code")?;
     // qrcode is supposed to be able to generate an Image directly,
     // but that doesn't work.  Take the long way around.
@@ -340,7 +341,7 @@ fn write_qrcode<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) -> 
         .dark_color('#')
         .light_color(' ')
         .build();
-    let image_str = image_str_with_newlines.replace("\n", "");
+    let image_str = image_str_with_newlines.replace('\n', "");
     let height = image_str_with_newlines.len() - image_str.len() + 1;
     let width = image_str.len() / height;
     let mut image = GrayImage::new(
@@ -369,4 +370,15 @@ fn write_code128<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) ->
         }
     }
     renderer.write_image(&image)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clap() {
+        use clap::CommandFactory;
+        Args::command().debug_assert()
+    }
 }

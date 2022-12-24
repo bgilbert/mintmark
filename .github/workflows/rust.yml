@@ -20,22 +20,30 @@ jobs:
           - stable
           - beta
           - nightly
+          - msrv
         pinned: [false]
         include:
-          - rust: 1.54.0
+          - rust: 1.65.0
             pinned: true
     name: Tests (${{ matrix.rust }})
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.rust == 'nightly' }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+      - name: Get Rust version
+        run: |
+          if [ "${{ matrix.rust }}" = msrv ]; then
+              MSRV=$(grep rust-version Cargo.toml | awk '{print $3}' | tr -d '"')
+              echo "RUST=$MSRV" >> $GITHUB_ENV
+          else
+              echo "RUST=${{ matrix.rust }}" >> $GITHUB_ENV
+          fi
       - name: Install toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@v1
         with:
-          toolchain: ${{ matrix.rust }}
+          toolchain: ${{ env.RUST }}
           components: rustfmt, clippy
-          default: true
       - name: Build
         run: cargo build
       - name: Test

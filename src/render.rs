@@ -19,7 +19,6 @@ use bitflags::bitflags;
 use encoding::all::ASCII;
 use encoding::types::{EncoderTrap, Encoding};
 use image::{GrayImage, Luma};
-use std::convert::TryFrom;
 use std::io::{Read, Write};
 use std::rc::Rc;
 
