@@ -329,7 +329,7 @@ fn write_image<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) -> R
 
 fn write_qrcode<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) -> Result<()> {
     // Build code
-    let code = QrCode::with_error_correction_level(&contents.as_bytes(), EcLevel::L)
+    let code = QrCode::with_error_correction_level(contents.as_bytes(), EcLevel::L)
         .context("creating QR code")?;
     // qrcode is supposed to be able to generate an Image directly,
     // but that doesn't work.  Take the long way around.
@@ -340,7 +340,7 @@ fn write_qrcode<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) -> 
         .dark_color('#')
         .light_color(' ')
         .build();
-    let image_str = image_str_with_newlines.replace("\n", "");
+    let image_str = image_str_with_newlines.replace('\n', "");
     let height = image_str_with_newlines.len() - image_str.len() + 1;
     let width = image_str.len() / height;
     let mut image = GrayImage::new(
