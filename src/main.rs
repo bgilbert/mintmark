@@ -83,7 +83,7 @@ fn main() -> Result<()> {
     render(input, &mut output)
 }
 
-fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
+fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_STRIKETHROUGH);
     let parser = Parser::new_ext(input, options);
@@ -307,7 +307,7 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
     Ok(())
 }
 
-fn write_image<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) -> Result<()> {
+fn write_image(renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
     let width = contents.split('\n').fold(0, |acc, l| acc.max(l.len()));
     let height = contents.split('\n').count();
     let mut image = GrayImage::new(
@@ -328,7 +328,7 @@ fn write_image<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) -> R
     renderer.write_image(&image)
 }
 
-fn write_qrcode<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) -> Result<()> {
+fn write_qrcode(renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
     // Build code
     let code = QrCode::with_error_correction_level(contents.as_bytes(), EcLevel::L)
         .context("creating QR code")?;
@@ -355,7 +355,7 @@ fn write_qrcode<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) -> 
     renderer.write_image(&image)
 }
 
-fn write_code128<F: Read + Write>(renderer: &mut Renderer<F>, contents: &str) -> Result<()> {
+fn write_code128(renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
     // Build code, character set B
     let data = Code128::new(format!("\u{0181}{}", contents))
         .context("creating barcode")?
