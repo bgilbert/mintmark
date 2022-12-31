@@ -166,7 +166,7 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
                         };
                         let info = FormatInfo::parse(&info);
                         match info.language.as_ref() {
-                            "image" => {}
+                            "bitmap" => {}
                             "qrcode" => {}
                             "code128" => {}
                             _ => {
@@ -232,7 +232,7 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
                     renderer.restore_format();
                 }
                 Tag::CodeBlock(_) => match code_formats.pop().unwrap().language.as_ref() {
-                    "image" => {}
+                    "bitmap" => {}
                     "qrcode" => {}
                     "code128" => {}
                     _ => {
@@ -270,8 +270,8 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
                     .map(|i| i.language.as_ref())
                     .unwrap_or("")
                 {
-                    "image" => {
-                        write_image(&mut renderer, contents.trim_end_matches('\n'))?;
+                    "bitmap" => {
+                        write_bitmap(&mut renderer, contents.trim_end_matches('\n'))?;
                     }
                     "qrcode" => {
                         write_qrcode(&mut renderer, contents.trim())?;
@@ -340,12 +340,12 @@ impl FormatInfo {
     }
 }
 
-fn write_image(renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
+fn write_bitmap(renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
     let width = contents.split('\n').fold(0, |acc, l| acc.max(l.len()));
     let height = contents.split('\n').count();
     let mut image = GrayImage::new(
-        width.try_into().context("invalid image width")?,
-        height.try_into().context("invalid image height")?,
+        width.try_into().context("invalid bitmap width")?,
+        height.try_into().context("invalid bitmap height")?,
     );
     for pixel in image.pixels_mut() {
         pixel[0] = 255;
