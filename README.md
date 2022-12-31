@@ -25,6 +25,8 @@ target/debug/mintmark /dev/usb/lp0 < input.md
 - Horizontal rules, rendered by cutting the paper
 - Arbitrary 1-bit images, specified as ASCII art in code blocks with the
   `bitmap` language identifier
+- Images in plain PNM format, specified as code blocks with the `image`
+  language identifier
 - QR codes, specified as code blocks with the `qrcode` language identifier
 - Code128 code set B barcodes, specified as code blocks with the `code128`
   language identifier

@@ -20,6 +20,7 @@ use anyhow::{bail, Context, Result};
 use barcoders::sym::code128::Code128;
 use clap::Parser as ClapParser;
 use fs2::FileExt;
+use image::imageops::colorops::{dither, BiLevel};
 use image::GrayImage;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag};
 use qrcode::{EcLevel, QrCode};
@@ -167,6 +168,7 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
                         let info = FormatInfo::parse(&info);
                         match info.language.as_ref() {
                             "bitmap" => {}
+                            "image" => {}
                             "qrcode" => {}
                             "code128" => {}
                             _ => {
@@ -233,6 +235,7 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
                 }
                 Tag::CodeBlock(_) => match code_formats.pop().unwrap().language.as_ref() {
                     "bitmap" => {}
+                    "image" => {}
                     "qrcode" => {}
                     "code128" => {}
                     _ => {
@@ -272,6 +275,9 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
                 {
                     "bitmap" => {
                         write_bitmap(&mut renderer, contents.trim_end_matches('\n'))?;
+                    }
+                    "image" => {
+                        write_image(&mut renderer, &contents)?;
                     }
                     "qrcode" => {
                         write_qrcode(&mut renderer, contents.trim())?;
@@ -361,6 +367,12 @@ fn write_bitmap(renderer: &mut Renderer<impl Read + Write>, contents: &str) -> R
     renderer.write_image(&image)
 }
 
+fn write_image(renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
+    let mut image = image::load_from_memory(contents.as_bytes())?.to_luma8();
+    dither(&mut image, &BiLevel);
+    renderer.write_image(&image)
+}
+
 fn write_qrcode(renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
     // Build code
     let code = QrCode::with_error_correction_level(contents.as_bytes(), EcLevel::L)
@@ -393,8 +405,8 @@ fn write_code128(renderer: &mut Renderer<impl Read + Write>, contents: &str) -> 
     let data = Code128::new(format!("\u{0181}{}", contents))
         .context("creating barcode")?
         .encode();
-    // The barcoders image feature pulls in image format support, which is
-    // large.  Handle the conversion ourselves.
+    // The barcoders image feature pulls in all default features of `image`,
+    // which are large.  Handle the conversion ourselves.
     let mut image = GrayImage::new(data.len().try_into().context("barcode size overflow")?, 24);
     for (x, value) in data.iter().enumerate() {
         for y in 0..image.height() {
