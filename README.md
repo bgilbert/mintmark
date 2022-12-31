@@ -17,7 +17,9 @@ target/debug/mintmark /dev/usb/lp0 < input.md
 - Bold, rendered as double-strike
 - Italic, rendered as underline
 - Ordered and unordered lists
-- Inline code and code blocks, rendered as red
+- Inline code and code blocks, rendered as red by default.  Style modifiers
+  are specified with the `text` language identifier and one or more
+  space-separated keywords, currently `black` and `bold`
 - Strikethrough
 - Blockquotes, rendered as indent
 - Horizontal rules, rendered by cutting the paper

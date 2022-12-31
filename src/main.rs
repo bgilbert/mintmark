@@ -16,7 +16,7 @@
 
 mod render;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use barcoders::sym::code128::Code128;
 use clap::Parser as ClapParser;
 use fs2::FileExt;
@@ -26,8 +26,9 @@ use qrcode::{EcLevel, QrCode};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
+use std::rc::Rc;
 
-use render::{FormatFlags, Justification, Renderer};
+use render::{Format, FormatFlags, Justification, Renderer};
 
 /// Print Markdown to an Epson TM-U220B receipt printer
 #[derive(Debug, ClapParser)]
@@ -89,7 +90,7 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
     let parser = Parser::new_ext(input, options);
 
     let mut renderer = Renderer::new(output);
-    let mut code_formats: Vec<String> = Vec::new();
+    let mut code_formats: Vec<FormatInfo> = Vec::new();
     let mut lists: Vec<Option<u64>> = Vec::new();
     for (event, _) in parser.into_offset_iter() {
         match event {
@@ -159,19 +160,24 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
                         renderer.set_format(renderer.format().with_added_indent(4));
                     }
                     Tag::CodeBlock(kind) => {
-                        let format = match kind {
+                        let info = match kind {
                             CodeBlockKind::Indented => "".into(),
-                            CodeBlockKind::Fenced(f) => f,
+                            CodeBlockKind::Fenced(s) => s,
                         };
-                        match format.as_ref() {
+                        let info = FormatInfo::parse(&info);
+                        match info.language.as_ref() {
                             "image" => {}
                             "qrcode" => {}
                             "code128" => {}
                             _ => {
-                                renderer.set_format(renderer.format().with_red(true));
+                                let mut format = renderer.format().with_red(true);
+                                if info.language == "text" {
+                                    format = info.text_format(format)?;
+                                }
+                                renderer.set_format(format);
                             }
                         }
-                        code_formats.push(format.to_string());
+                        code_formats.push(info);
                     }
                     Tag::List(first_item_number) => {
                         lists.push(first_item_number);
@@ -225,21 +231,14 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
                 Tag::BlockQuote => {
                     renderer.restore_format();
                 }
-                Tag::CodeBlock(kind) => {
-                    code_formats.pop();
-                    let format = match kind {
-                        CodeBlockKind::Indented => "".into(),
-                        CodeBlockKind::Fenced(f) => f,
-                    };
-                    match format.as_ref() {
-                        "image" => {}
-                        "qrcode" => {}
-                        "code128" => {}
-                        _ => {
-                            renderer.restore_format();
-                        }
+                Tag::CodeBlock(_) => match code_formats.pop().unwrap().language.as_ref() {
+                    "image" => {}
+                    "qrcode" => {}
+                    "code128" => {}
+                    _ => {
+                        renderer.restore_format();
                     }
-                }
+                },
                 Tag::List(_first_item_number) => {
                     lists.pop();
                     renderer.write("\n")?;
@@ -266,7 +265,11 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
                 Tag::Image(_, _, _) => {}
             },
             Event::Text(contents) => {
-                match code_formats.last().unwrap_or(&"".to_string()).as_str() {
+                match code_formats
+                    .last()
+                    .map(|i| i.language.as_ref())
+                    .unwrap_or("")
+                {
                     "image" => {
                         write_image(&mut renderer, contents.trim_end_matches('\n'))?;
                     }
@@ -305,6 +308,36 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
     renderer.print()?;
 
     Ok(())
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct FormatInfo {
+    language: String,
+    options: Vec<String>,
+}
+
+impl FormatInfo {
+    fn parse(info: &str) -> Self {
+        let mut it = info.split_whitespace();
+        Self {
+            language: it.next().unwrap_or("").into(),
+            options: it.map(|s| s.to_string()).collect(),
+        }
+    }
+
+    fn text_format(&self, mut format: Rc<Format>) -> Result<Rc<Format>> {
+        if self.language != "text" {
+            bail!("language is not 'text'");
+        }
+        for option in &self.options {
+            format = match option.as_ref() {
+                "black" => format.with_red(false),
+                "bold" => format.with_flags(FormatFlags::EMPHASIZED),
+                _ => bail!("unknown option '{}'", option),
+            }
+        }
+        Ok(format)
+    }
 }
 
 fn write_image(renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
@@ -380,5 +413,69 @@ mod tests {
     fn clap() {
         use clap::CommandFactory;
         Args::command().debug_assert()
+    }
+
+    #[test]
+    fn format_info_parse() {
+        let tests = [
+            (
+                "",
+                FormatInfo {
+                    language: "".into(),
+                    options: vec![],
+                },
+            ),
+            (
+                "foo",
+                FormatInfo {
+                    language: "foo".into(),
+                    options: vec![],
+                },
+            ),
+            (
+                "  text	",
+                FormatInfo {
+                    language: "text".into(),
+                    options: vec![],
+                },
+            ),
+            (
+                " text  black  bold ",
+                FormatInfo {
+                    language: "text".into(),
+                    options: vec!["black".into(), "bold".into()],
+                },
+            ),
+        ];
+        for (info, expected) in tests {
+            assert_eq!(FormatInfo::parse(info), expected);
+        }
+    }
+
+    #[test]
+    fn format_info_text_format() {
+        let base = Format::new().with_red(true);
+
+        let error = ["text bold blah", "foo bold"];
+        for info in error {
+            FormatInfo::parse(info)
+                .text_format(base.clone())
+                .unwrap_err();
+        }
+
+        let success = [
+            ("text", base.clone()),
+            ("text black", base.with_red(false)),
+            (
+                "text black bold",
+                base.with_red(false).with_flags(FormatFlags::EMPHASIZED),
+            ),
+        ];
+        for (info, expected) in success {
+            assert_eq!(
+                FormatInfo::parse(info).text_format(base.clone()).unwrap(),
+                expected
+            );
+        }
     }
 }

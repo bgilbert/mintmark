@@ -39,7 +39,7 @@ pub struct Renderer<F: Read + Write> {
     word_has_letters: bool,
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Format {
     flags: FormatFlags,
     line_spacing: u8,
@@ -60,7 +60,7 @@ bitflags! {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Justification {
     Left = 0,
     Center = 1,
