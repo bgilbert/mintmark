@@ -160,10 +160,10 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
                     }
                     Tag::CodeBlock(kind) => {
                         let format = match kind {
-                            CodeBlockKind::Indented => "".to_string(),
-                            CodeBlockKind::Fenced(format_cow) => format_cow.into_string(),
+                            CodeBlockKind::Indented => "".into(),
+                            CodeBlockKind::Fenced(f) => f,
                         };
-                        match format.as_str() {
+                        match format.as_ref() {
                             "image" => {}
                             "qrcode" => {}
                             "code128" => {}
@@ -171,7 +171,7 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
                                 renderer.set_format(renderer.format().with_red(true));
                             }
                         }
-                        code_formats.push(format);
+                        code_formats.push(format.to_string());
                     }
                     Tag::List(first_item_number) => {
                         lists.push(first_item_number);
@@ -228,10 +228,10 @@ fn render<F: Read + Write>(input: &str, output: &mut F) -> Result<()> {
                 Tag::CodeBlock(kind) => {
                     code_formats.pop();
                     let format = match kind {
-                        CodeBlockKind::Indented => "".to_string(),
-                        CodeBlockKind::Fenced(format_cow) => format_cow.into_string(),
+                        CodeBlockKind::Indented => "".into(),
+                        CodeBlockKind::Fenced(f) => f,
                     };
-                    match format.as_str() {
+                    match format.as_ref() {
                         "image" => {}
                         "qrcode" => {}
                         "code128" => {}
