@@ -24,6 +24,7 @@ use image::imageops::colorops::{dither, BiLevel};
 use image::GrayImage;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag};
 use qrcode::{EcLevel, QrCode};
+use std::borrow::Cow;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
@@ -268,16 +269,13 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
                 Tag::Image(_, _, _) => {}
             },
             Event::Text(contents) => {
-                match code_formats
-                    .last()
-                    .map(|i| i.language.as_ref())
-                    .unwrap_or("")
-                {
+                let info = code_formats.last();
+                match info.map(|i| i.language.as_ref()).unwrap_or("") {
                     "bitmap" => {
                         write_bitmap(&mut renderer, contents.trim_end_matches('\n'))?;
                     }
                     "image" => {
-                        write_image(&mut renderer, &contents)?;
+                        write_image(&mut renderer, info.unwrap(), &contents)?;
                     }
                     "qrcode" => {
                         write_qrcode(&mut renderer, contents.trim())?;
@@ -367,8 +365,26 @@ fn write_bitmap(renderer: &mut Renderer<impl Read + Write>, contents: &str) -> R
     renderer.write_image(&image)
 }
 
-fn write_image(renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
-    let mut image = image::load_from_memory(contents.as_bytes())?.to_luma8();
+fn write_image(
+    renderer: &mut Renderer<impl Read + Write>,
+    info: &FormatInfo,
+    contents: &str,
+) -> Result<()> {
+    assert!(info.language == "image");
+    let mut base64 = false;
+    for option in &info.options {
+        match option.as_ref() {
+            "base64" => base64 = true,
+            _ => bail!("unknown option '{}'", option),
+        }
+    }
+
+    let data = if base64 {
+        Cow::from(base64::decode(contents.replace(['\r', '\n'], "")).context("decoding base64")?)
+    } else {
+        Cow::from(contents.as_bytes())
+    };
+    let mut image = image::load_from_memory(&data)?.to_luma8();
     dither(&mut image, &BiLevel);
     renderer.write_image(&image)
 }

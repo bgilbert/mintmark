@@ -27,6 +27,10 @@ target/debug/mintmark /dev/usb/lp0 < input.md
   `bitmap` language identifier
 - Images in plain PNM format, specified as code blocks with the `image`
   language identifier
+- Images in JPEG, PNG, WebP, or raw PNM format, specified as base64-encoded
+  images in code blocks with the `image base64` language identifier.  JPEG
+  and PNG require the `jpeg` and `png` features, respectively, which are
+  enabled by default.
 - QR codes, specified as code blocks with the `qrcode` language identifier
 - Code128 code set B barcodes, specified as code blocks with the `code128`
   language identifier
