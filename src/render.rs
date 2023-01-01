@@ -48,6 +48,7 @@ pub struct Format {
     unidirectional: bool,
     strikethrough: bool,
     justification: Justification,
+    control: bool,
 }
 
 bitflags! {
@@ -221,7 +222,9 @@ impl<F: Read + Write> Renderer<F> {
                 // Set line spacing to avoid gaps
                 .with_line_spacing(16)
                 // Center on line
-                .with_justification(Justification::Center),
+                .with_justification(Justification::Center)
+                // Graphics chars don't have width for multi-pass alignment
+                .with_control(true),
         );
 
         // Write image
@@ -320,6 +323,7 @@ impl Format {
             unidirectional: false,
             strikethrough: false,
             justification: Justification::Left,
+            control: false,
         })
     }
 
@@ -368,6 +372,12 @@ impl Format {
     pub fn with_justification(&self, justification: Justification) -> Rc<Self> {
         let mut format = self.clone();
         format.justification = justification;
+        Rc::new(format)
+    }
+
+    fn with_control(&self, control: bool) -> Rc<Self> {
+        let mut format = self.clone();
+        format.control = control;
         Rc::new(format)
     }
 
@@ -433,7 +443,15 @@ static PASSES: [LinePass; 4] = [
             };
             format
         },
-        char_map: |char, _format, active| if active { vec![char] } else { vec![b' '] },
+        char_map: |char, format, active| {
+            if active {
+                vec![char]
+            } else if format.control {
+                vec![]
+            } else {
+                vec![b' ']
+            }
+        },
     },
     LinePass {
         name: "black strikethrough",
@@ -457,7 +475,15 @@ static PASSES: [LinePass; 4] = [
             };
             format
         },
-        char_map: |char, _format, active| if active { vec![char] } else { vec![b' '] },
+        char_map: |char, format, active| {
+            if active {
+                vec![char]
+            } else if format.control {
+                vec![]
+            } else {
+                vec![b' ']
+            }
+        },
     },
     LinePass {
         name: "red strikethrough",
