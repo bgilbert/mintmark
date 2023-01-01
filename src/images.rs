@@ -16,8 +16,8 @@
 
 use anyhow::{bail, Context, Result};
 use barcoders::sym::code128::Code128;
-use image::imageops::colorops::{dither, BiLevel};
-use image::GrayImage;
+use image::imageops::colorops::{dither, ColorMap};
+use image::{Rgb, RgbImage};
 use qrcode::{EcLevel, QrCode};
 use std::borrow::Cow;
 use std::io::{Read, Write};
@@ -31,19 +31,23 @@ pub(crate) fn write_bitmap(
 ) -> Result<()> {
     let width = contents.split('\n').fold(0, |acc, l| acc.max(l.len()));
     let height = contents.split('\n').count();
-    let mut image = GrayImage::new(
+    let mut image = RgbImage::new(
         width.try_into().context("invalid bitmap width")?,
         height.try_into().context("invalid bitmap height")?,
     );
     for pixel in image.pixels_mut() {
-        pixel[0] = 255;
+        *pixel = Colors::COLOR_WHITE;
     }
     for (y, row) in contents.split('\n').enumerate() {
         for (x, value) in row.chars().enumerate() {
-            image.get_pixel_mut(
+            *image.get_pixel_mut(
                 x.try_into().context("invalid X coordinate")?,
                 y.try_into().context("invalid Y coordinate")?,
-            )[0] = if value != ' ' { 0 } else { 255 };
+            ) = if value != ' ' {
+                Colors::COLOR_BLACK
+            } else {
+                Colors::COLOR_WHITE
+            };
         }
     }
     renderer.write_image(&image)
@@ -68,8 +72,8 @@ pub(crate) fn write_image(
     } else {
         Cow::from(contents.as_bytes())
     };
-    let mut image = image::load_from_memory(&data)?.to_luma8();
-    dither(&mut image, &BiLevel);
+    let mut image = image::load_from_memory(&data)?.to_rgb8();
+    dither(&mut image, &Colors::new());
     renderer.write_image(&image)
 }
 
@@ -92,12 +96,16 @@ pub(crate) fn write_qrcode(
     let image_str = image_str_with_newlines.replace('\n', "");
     let height = image_str_with_newlines.len() - image_str.len() + 1;
     let width = image_str.len() / height;
-    let mut image = GrayImage::new(
+    let mut image = RgbImage::new(
         width.try_into().context("invalid QR code width")?,
         height.try_into().context("invalid QR code height")?,
     );
     for (item, pixel) in image_str.chars().zip(image.pixels_mut()) {
-        pixel[0] = if item == '#' { 0 } else { 255 };
+        *pixel = if item == '#' {
+            Colors::COLOR_BLACK
+        } else {
+            Colors::COLOR_WHITE
+        };
     }
 
     renderer.write_image(&image)
@@ -113,12 +121,62 @@ pub(crate) fn write_code128(
         .encode();
     // The barcoders image feature pulls in all default features of `image`,
     // which are large.  Handle the conversion ourselves.
-    let mut image = GrayImage::new(data.len().try_into().context("barcode size overflow")?, 24);
+    let mut image = RgbImage::new(data.len().try_into().context("barcode size overflow")?, 24);
     for (x, value) in data.iter().enumerate() {
         for y in 0..image.height() {
-            image.get_pixel_mut(x.try_into().context("invalid X coordinate")?, y)[0] =
-                if *value > 0 { 0 } else { 255 };
+            *image.get_pixel_mut(x.try_into().context("invalid X coordinate")?, y) = if *value > 0 {
+                Colors::COLOR_BLACK
+            } else {
+                Colors::COLOR_WHITE
+            };
         }
     }
     renderer.write_image(&image)
+}
+
+pub(crate) struct Colors {
+    colors: Vec<<Self as ColorMap>::Color>,
+}
+
+impl Colors {
+    pub(crate) const COLOR_WHITE: Rgb<u8> = Rgb([255, 255, 255]);
+    pub(crate) const COLOR_BLACK: Rgb<u8> = Rgb([0, 0, 0]);
+
+    fn new() -> Self {
+        Self {
+            colors: vec![Self::COLOR_WHITE, Self::COLOR_BLACK],
+        }
+    }
+}
+
+impl ColorMap for Colors {
+    type Color = Rgb<u8>;
+
+    fn index_of(&self, color: &Self::Color) -> usize {
+        self.colors.iter().position(|v| v == color).unwrap_or(0)
+    }
+
+    fn map_color(&self, color: &mut Self::Color) {
+        let mut distance = vec![0i32; self.colors.len()];
+        for (i, palette) in self.colors.iter().enumerate() {
+            for c in 0..2 {
+                let difference = (palette[c] as i32) - (color[c] as i32);
+                distance[i] += difference * difference;
+            }
+        }
+        let (i, _) = distance.iter().enumerate().min_by_key(|(_, v)| *v).unwrap();
+        *color = self.colors[i];
+    }
+
+    fn lookup(&self, index: usize) -> Option<Self::Color> {
+        if index < self.colors.len() {
+            Some(self.colors[index])
+        } else {
+            None
+        }
+    }
+
+    fn has_lookup(&self) -> bool {
+        true
+    }
 }

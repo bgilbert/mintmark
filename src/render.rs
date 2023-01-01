@@ -18,9 +18,11 @@ use anyhow::{anyhow, bail, Context, Result};
 use bitflags::bitflags;
 use encoding::all::ASCII;
 use encoding::types::{EncoderTrap, Encoding};
-use image::{GrayImage, Luma};
+use image::RgbImage;
 use std::io::{Read, Write};
 use std::rc::Rc;
+
+use crate::images::Colors;
 
 const LINE_PIXELS_IMAGE: usize = 200;
 const LINE_PIXELS_TEXT: usize = 320;
@@ -201,7 +203,7 @@ impl<F: Read + Write> Renderer<F> {
         self.word_has_letters = false;
     }
 
-    pub fn write_image(&mut self, image: &GrayImage) -> Result<()> {
+    pub fn write_image(&mut self, image: &RgbImage) -> Result<()> {
         if image.width() as usize > LINE_PIXELS_IMAGE {
             bail!(
                 "Image width {} larger than maximum {}",
@@ -238,13 +240,13 @@ impl<F: Read + Write> Renderer<F> {
             for x in 0..image.width() {
                 let mut byte: u8 = 0;
                 for y in yblock * 8..(yblock + 1) * 8 {
-                    let Luma(level) = if y < image.height() {
+                    let color = if y < image.height() {
                         image.get_pixel(x, y)
                     } else {
-                        &Luma([255])
+                        &Colors::COLOR_WHITE
                     };
                     byte <<= 1;
-                    byte |= (level[0] < 128) as u8;
+                    byte |= (*color == Colors::COLOR_BLACK) as u8;
                 }
                 self.line.push(LineChar {
                     char: byte,
