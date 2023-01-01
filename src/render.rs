@@ -294,12 +294,7 @@ impl<F: Read + Write> Renderer<F> {
     }
 
     fn active_for_line(&self, pass: &LinePass) -> bool {
-        for lc in self.line.iter() {
-            if (pass.active)(&lc.format) {
-                return true;
-            }
-        }
-        false
+        self.line.iter().any(|lc| (pass.active)(&lc.format))
     }
 
     fn spool(&mut self, buf: &[u8]) {
