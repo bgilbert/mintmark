@@ -35,6 +35,11 @@ target/debug/mintmark /dev/usb/lp0 < input.md
 - Code128 code set B barcodes, specified as code blocks with the `code128`
   language identifier
 
+### Image features
+
+- Red/black can be used with the `bicolor` keyword, e.g.
+  `image base64 bicolor`
+
 ## Missing and non-features
 
 - Paper widths other than 3" ([#6](https://github.com/bgilbert/mintmark/issues/6))

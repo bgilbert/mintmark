@@ -230,28 +230,42 @@ impl<F: Read + Write> Renderer<F> {
         );
 
         // Write image
+        let mut pass_buf = Vec::new();
         for yblock in 0..(image.height() + 7) / 8 {
-            for byte in bit_image_prologue(image.width() as usize)? {
-                self.line.push(LineChar {
-                    char: byte,
-                    format: self.format.clone(),
-                })
-            }
-            for x in 0..image.width() {
-                let mut byte: u8 = 0;
-                for y in yblock * 8..(yblock + 1) * 8 {
-                    let color = if y < image.height() {
-                        image.get_pixel(x, y)
-                    } else {
-                        &Colors::COLOR_WHITE
-                    };
-                    byte <<= 1;
-                    byte |= (*color == Colors::COLOR_BLACK) as u8;
+            for pass in [Colors::COLOR_BLACK, Colors::COLOR_RED] {
+                match pass {
+                    Colors::COLOR_BLACK => self.set_format(self.format()),
+                    Colors::COLOR_RED => self.set_format(self.format().with_red(true)),
+                    _ => unreachable!(),
                 }
-                self.line.push(LineChar {
-                    char: byte,
-                    format: self.format.clone(),
-                });
+                for x in 0..image.width() {
+                    let mut byte: u8 = 0;
+                    for y in yblock * 8..(yblock + 1) * 8 {
+                        let color = if y < image.height() {
+                            image.get_pixel(x, y)
+                        } else {
+                            &Colors::COLOR_WHITE
+                        };
+                        byte <<= 1;
+                        byte |= (*color == pass) as u8;
+                    }
+                    pass_buf.push(LineChar {
+                        char: byte,
+                        format: self.format.clone(),
+                    });
+                }
+                if pass_buf.iter().any(|c| c.char > 0) {
+                    for byte in bit_image_prologue(image.width() as usize)? {
+                        self.line.push(LineChar {
+                            char: byte,
+                            format: self.format.clone(),
+                        })
+                    }
+                    self.line.append(&mut pass_buf);
+                } else {
+                    pass_buf.clear();
+                }
+                self.restore_format();
             }
             self.line_width += image.width() as usize;
             self.spool_line();

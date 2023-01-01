@@ -60,9 +60,11 @@ pub(crate) fn write_image(
 ) -> Result<()> {
     assert!(info.language == "image");
     let mut base64 = false;
+    let mut bicolor = false;
     for option in &info.options {
         match option.as_ref() {
             "base64" => base64 = true,
+            "bicolor" => bicolor = true,
             _ => bail!("unknown option '{}'", option),
         }
     }
@@ -73,7 +75,7 @@ pub(crate) fn write_image(
         Cow::from(contents.as_bytes())
     };
     let mut image = image::load_from_memory(&data)?.to_rgb8();
-    dither(&mut image, &Colors::new());
+    dither(&mut image, &Colors::new(bicolor));
     renderer.write_image(&image)
 }
 
@@ -141,11 +143,16 @@ pub(crate) struct Colors {
 impl Colors {
     pub(crate) const COLOR_WHITE: Rgb<u8> = Rgb([255, 255, 255]);
     pub(crate) const COLOR_BLACK: Rgb<u8> = Rgb([0, 0, 0]);
+    pub(crate) const COLOR_RED: Rgb<u8> = Rgb([255, 0, 0]);
 
-    fn new() -> Self {
-        Self {
+    fn new(bicolor: bool) -> Self {
+        let mut ret = Self {
             colors: vec![Self::COLOR_WHITE, Self::COLOR_BLACK],
+        };
+        if bicolor {
+            ret.colors.push(Self::COLOR_RED);
         }
+        ret
     }
 }
 
