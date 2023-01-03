@@ -18,11 +18,11 @@ use anyhow::{anyhow, bail, Context, Result};
 use bitflags::bitflags;
 use encoding::all::ASCII;
 use encoding::types::{EncoderTrap, Encoding};
-use image::RgbImage;
+use std::cmp::max;
 use std::io::{Read, Write};
 use std::rc::Rc;
 
-use crate::images::Colors;
+use crate::images::StrikeImage;
 
 const LINE_PIXELS_IMAGE: usize = 200;
 const LINE_PIXELS_TEXT: usize = 320;
@@ -203,7 +203,7 @@ impl<F: Read + Write> Renderer<F> {
         self.word_has_letters = false;
     }
 
-    pub fn write_image(&mut self, image: &RgbImage) -> Result<()> {
+    pub fn write_image(&mut self, image: &StrikeImage) -> Result<()> {
         if image.width() as usize > LINE_PIXELS_IMAGE {
             bail!(
                 "Image width {} larger than maximum {}",
@@ -230,40 +230,59 @@ impl<F: Read + Write> Renderer<F> {
         );
 
         // Write image
-        let mut pass_buf = Vec::new();
         for yblock in 0..(image.height() + 7) / 8 {
-            for pass in [Colors::COLOR_BLACK, Colors::COLOR_RED] {
-                match pass {
-                    Colors::COLOR_BLACK => self.set_format(self.format()),
-                    Colors::COLOR_RED => self.set_format(self.format().with_red(true)),
+            let xrange = 0..image.width();
+            let yrange = yblock * 8..(yblock + 1) * 8;
+
+            // Compute the number of strike passes in this yblock
+            let mut max_strikes: [u8; 2] = [0, 0];
+            for y in yrange.clone() {
+                if y >= image.height() {
+                    continue;
+                }
+                for x in xrange.clone() {
+                    let pixel = image.get_pixel(x, y);
+                    for (channel, max_strike) in max_strikes.iter_mut().enumerate() {
+                        *max_strike = max(*max_strike, pixel.0[channel]);
+                    }
+                }
+            }
+
+            for (channel, max_strike) in max_strikes.iter().enumerate() {
+                match channel {
+                    0 => self.set_format(self.format()),
+                    1 => self.set_format(self.format().with_red(true)),
                     _ => unreachable!(),
                 }
-                for x in 0..image.width() {
-                    let mut byte: u8 = 0;
-                    for y in yblock * 8..(yblock + 1) * 8 {
-                        let color = if y < image.height() {
-                            image.get_pixel(x, y)
-                        } else {
-                            &Colors::COLOR_WHITE
-                        };
-                        byte <<= 1;
-                        byte |= (*color == pass) as u8;
-                    }
-                    pass_buf.push(LineChar {
-                        char: byte,
-                        format: self.format.clone(),
-                    });
-                }
-                if pass_buf.iter().any(|c| c.char > 0) {
+                for strike in 0..*max_strike {
                     for byte in bit_image_prologue(image.width() as usize)? {
                         self.line.push(LineChar {
                             char: byte,
                             format: self.format.clone(),
                         })
                     }
-                    self.line.append(&mut pass_buf);
-                } else {
-                    pass_buf.clear();
+                    for x in xrange.clone() {
+                        let mut byte: u8 = 0;
+                        for y in yrange.clone() {
+                            let channel_strikes = if y < image.height() {
+                                image.get_pixel(x, y).0[channel]
+                            } else {
+                                0
+                            };
+                            byte <<= 1;
+                            if strike < channel_strikes {
+                                byte |= 1;
+                            }
+                        }
+                        self.line.push(LineChar {
+                            char: byte,
+                            format: self.format.clone(),
+                        });
+                    }
+                    self.line.push(LineChar {
+                        char: b'\r',
+                        format: self.format.clone(),
+                    })
                 }
                 self.restore_format();
             }
