@@ -94,18 +94,19 @@ impl BitmapBlock {
         );
         for (y, row) in contents.split('\n').enumerate() {
             for (x, value) in row.chars().enumerate() {
-                *image.get_pixel_mut(
+                image.put_pixel(
                     x.try_into().context("invalid X coordinate")?,
                     y.try_into().context("invalid Y coordinate")?,
-                ) = if value != ' ' {
-                    if self.bold {
-                        Strike([2, 0])
+                    if value != ' ' {
+                        if self.bold {
+                            Strike([2, 0])
+                        } else {
+                            Strike([1, 0])
+                        }
                     } else {
-                        Strike([1, 0])
-                    }
-                } else {
-                    Strike([0, 0])
-                };
+                        Strike([0, 0])
+                    },
+                );
             }
         }
         renderer.write_image(&image)
@@ -140,7 +141,9 @@ impl Code128Block {
             StrikeImage::new(data.len().try_into().context("barcode size overflow")?, 24);
         for (x, value) in data.iter().enumerate() {
             for y in 0..image.height() {
-                *image.get_pixel_mut(x.try_into().context("invalid X coordinate")?, y) =
+                image.put_pixel(
+                    x.try_into().context("invalid X coordinate")?,
+                    y,
                     if *value > 0 {
                         if self.bold {
                             Strike([2, 0])
@@ -149,7 +152,8 @@ impl Code128Block {
                         }
                     } else {
                         Strike([0, 0])
-                    };
+                    },
+                );
             }
         }
         renderer.write_image(&image)
