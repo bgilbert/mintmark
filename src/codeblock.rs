@@ -177,7 +177,7 @@ impl ImageBlock {
 
     fn render(&self, renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
         let data = base64_maybe_decode(contents, self.base64)?;
-        let image = image::load_from_memory(&data)?.to_rgb8();
+        let image = image::load_from_memory(&data)?.into_rgb8();
         renderer.write_image(&StrikeColors::new(self.bicolor).map_image(&image))
     }
 }
