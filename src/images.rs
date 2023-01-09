@@ -16,6 +16,7 @@
 
 use anyhow::{bail, Context, Result};
 use barcoders::sym::code128::Code128;
+use base64::Engine;
 use image::imageops::colorops::{dither, ColorMap};
 use image::{ImageBuffer, Luma, LumaA, Pixel, Rgb, RgbImage, Rgba};
 use qrcode::{EcLevel, QrCode};
@@ -70,7 +71,11 @@ pub(crate) fn write_image(
     }
 
     let data = if base64 {
-        Cow::from(base64::decode(contents.replace(['\r', '\n'], "")).context("decoding base64")?)
+        Cow::from(
+            base64::engine::general_purpose::STANDARD
+                .decode(contents.replace(['\r', '\n'], ""))
+                .context("decoding base64")?,
+        )
     } else {
         Cow::from(contents.as_bytes())
     };
