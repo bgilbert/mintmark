@@ -334,6 +334,11 @@ impl FormatInfo {
             format = match option.as_ref() {
                 "black" => format.with_red(false),
                 "bold" => format.with_flags(FormatFlags::EMPHASIZED),
+                "doubleheight" => format.with_flags(FormatFlags::DOUBLE_HEIGHT),
+                "doublewidth" => format.with_flags(FormatFlags::DOUBLE_WIDTH),
+                "strikethrough" => format.with_strikethrough(true),
+                "underline" => format.with_flags(FormatFlags::UNDERLINE),
+                "wide" => format.without_flags(FormatFlags::NARROW),
                 _ => bail!("unknown option '{}'", option),
             }
         }
