@@ -96,6 +96,7 @@ fn custom_chars() -> Result<()> {
             buf.push(char);
             buf.push(char);
             buf.push(w as u8);
+            let mut prev = 0;
             for x in 0..w {
                 let mut bits = 0u16;
                 for y in 0..HEIGHT {
@@ -108,9 +109,17 @@ fn custom_chars() -> Result<()> {
                         .copied()
                         .unwrap_or(b' ')
                         != b' ') as u16;
+                    if bits & 0x1 != 0 && prev & 0x8000 != 0 {
+                        bail!(
+                            "Character in {} has horizontally adjacent dots",
+                            ent.path().display()
+                        );
+                    }
+                    prev <<= 1;
                 }
                 bits <<= 16 - HEIGHT;
                 buf.extend(bits.to_be_bytes());
+                prev = bits;
             }
             count += 1;
         }
