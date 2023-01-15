@@ -22,7 +22,7 @@ use std::cmp::max;
 use std::io::{Read, Write};
 use std::rc::Rc;
 
-use crate::images::StrikeImage;
+use crate::strike::StrikeImage;
 
 const LINE_PIXELS_IMAGE: usize = 200;
 const LINE_PIXELS_TEXT: usize = 320;

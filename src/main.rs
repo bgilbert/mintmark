@@ -14,8 +14,9 @@
  * limitations under the License.
 */
 
-mod images;
+mod codeblock;
 mod render;
+mod strike;
 
 use anyhow::{bail, Context, Result};
 use clap::Parser as ClapParser;
@@ -26,7 +27,7 @@ use std::io::{self, Read, Write};
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use images::{write_bitmap, write_code128, write_image, write_qrcode};
+use codeblock::{write_bitmap, write_code128, write_image, write_qrcode};
 use render::{Format, FormatFlags, Justification, Renderer};
 
 /// Print Markdown to an Epson TM-U220B receipt printer
