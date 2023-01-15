@@ -101,19 +101,23 @@ fn custom_chars() -> Result<()> {
                 let mut bits = 0u16;
                 for y in 0..HEIGHT {
                     bits <<= 1;
-                    bits |= (pixels
+                    let cur_bit = pixels
                         .get(y)
                         .copied()
                         .unwrap_or(&[] as &[u8])
                         .get(x)
                         .copied()
                         .unwrap_or(b' ')
-                        != b' ') as u16;
-                    if bits & 0x1 != 0 && prev & 0x8000 != 0 {
-                        bail!(
-                            "Character in {} has horizontally adjacent dots",
-                            ent.path().display()
-                        );
+                        != b' ';
+                    let prev_bit = prev & 0x8000 != 0;
+                    // verify the second half of a dot is marked as set, then
+                    // swallow it
+                    if !prev_bit && cur_bit {
+                        // first half of a dot; record it
+                        bits |= 1;
+                    } else if prev_bit && !cur_bit {
+                        // missing second half
+                        bail!("Found a dot not two columns wide: {}", ent.path().display());
                     }
                     prev <<= 1;
                 }
