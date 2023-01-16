@@ -25,16 +25,17 @@ target/debug/mintmark /dev/usb/lp0 < input.md
 - Blockquotes, rendered as indent
 - Horizontal rules, rendered by cutting the paper
 - Arbitrary 1-bit images, specified as ASCII art in code blocks with the
-  `bitmap` language identifier
+  `bitmap` language identifier.  Supported keywords: `bold`
 - Images in plain PNM format, specified as code blocks with the `image`
   language identifier
 - Images in JPEG, PNG, WebP, or raw PNM format, specified as base64-encoded
   images in code blocks with the `image base64` language identifier.  JPEG
   and PNG require the `jpeg` and `png` features, respectively, which are
   enabled by default.
-- QR codes, specified as code blocks with the `qrcode` language identifier
+- QR codes, specified as code blocks with the `qrcode` language identifier.
+  Supported keywords: `base64`, `bold`
 - Code128 code set B barcodes, specified as code blocks with the `code128`
-  language identifier
+  language identifier.  Supported keywords: `bold`
 
 ### Image features
 

@@ -66,15 +66,21 @@ impl CodeBlockConfig {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub(crate) struct BitmapBlock {}
+#[derive(Debug, Default, Eq, PartialEq)]
+pub(crate) struct BitmapBlock {
+    bold: bool,
+}
 
 impl BitmapBlock {
     fn from_options(options: &[&str]) -> Result<Self> {
-        if !options.is_empty() {
-            bail!("no options supported for bitmaps");
+        let mut block = Self::default();
+        for option in options {
+            match *option {
+                "bold" => block.bold = true,
+                _ => bail!("unknown option '{}'", option),
+            }
         }
-        Ok(Self {})
+        Ok(block)
     }
 
     fn render(&self, renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
@@ -92,7 +98,11 @@ impl BitmapBlock {
                     x.try_into().context("invalid X coordinate")?,
                     y.try_into().context("invalid Y coordinate")?,
                 ) = if value != ' ' {
-                    Strike([1, 0])
+                    if self.bold {
+                        Strike([2, 0])
+                    } else {
+                        Strike([1, 0])
+                    }
                 } else {
                     Strike([0, 0])
                 };
@@ -102,15 +112,21 @@ impl BitmapBlock {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub(crate) struct Code128Block {}
+#[derive(Debug, Default, Eq, PartialEq)]
+pub(crate) struct Code128Block {
+    bold: bool,
+}
 
 impl Code128Block {
     fn from_options(options: &[&str]) -> Result<Self> {
-        if !options.is_empty() {
-            bail!("no options supported for Code128");
+        let mut block = Self::default();
+        for option in options {
+            match *option {
+                "bold" => block.bold = true,
+                _ => bail!("unknown option '{}'", option),
+            }
         }
-        Ok(Self {})
+        Ok(block)
     }
 
     fn render(&self, renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
@@ -126,7 +142,11 @@ impl Code128Block {
             for y in 0..image.height() {
                 *image.get_pixel_mut(x.try_into().context("invalid X coordinate")?, y) =
                     if *value > 0 {
-                        Strike([1, 0])
+                        if self.bold {
+                            Strike([2, 0])
+                        } else {
+                            Strike([1, 0])
+                        }
                     } else {
                         Strike([0, 0])
                     };
@@ -156,35 +176,36 @@ impl ImageBlock {
     }
 
     fn render(&self, renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
-        let data = if self.base64 {
-            Cow::from(
-                base64::engine::general_purpose::STANDARD
-                    .decode(contents.replace(['\r', '\n'], ""))
-                    .context("decoding base64")?,
-            )
-        } else {
-            Cow::from(contents.as_bytes())
-        };
+        let data = base64_maybe_decode(contents, self.base64)?;
         let image = image::load_from_memory(&data)?.to_rgb8();
         renderer.write_image(&StrikeColors::new(self.bicolor).map_image(&image))
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub(crate) struct QrCodeBlock {}
+#[derive(Debug, Default, Eq, PartialEq)]
+pub(crate) struct QrCodeBlock {
+    base64: bool,
+    bold: bool,
+}
 
 impl QrCodeBlock {
     fn from_options(options: &[&str]) -> Result<Self> {
-        if !options.is_empty() {
-            bail!("no options supported for QR codes");
+        let mut block = Self::default();
+        for option in options {
+            match *option {
+                "base64" => block.base64 = true,
+                "bold" => block.bold = true,
+                _ => bail!("unknown option '{}'", option),
+            }
         }
-        Ok(Self {})
+        Ok(block)
     }
 
     fn render(&self, renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
         // Build code
-        let code = QrCode::with_error_correction_level(contents.trim().as_bytes(), EcLevel::L)
-            .context("creating QR code")?;
+        let data = base64_maybe_decode(contents.trim(), self.base64)?;
+        let code =
+            QrCode::with_error_correction_level(data, EcLevel::L).context("creating QR code")?;
         // qrcode is supposed to be able to generate an Image directly,
         // but that doesn't work.  Take the long way around.
         // https://github.com/kennytm/qrcode-rust/issues/19
@@ -203,7 +224,11 @@ impl QrCodeBlock {
         );
         for (item, pixel) in image_str.chars().zip(image.pixels_mut()) {
             *pixel = if item == '#' {
-                Strike([1, 0])
+                if self.bold {
+                    Strike([2, 0])
+                } else {
+                    Strike([1, 0])
+                }
             } else {
                 Strike([0, 0])
             };
@@ -249,6 +274,18 @@ impl TextBlock {
         let result = renderer.write(contents);
         renderer.restore_format();
         result
+    }
+}
+
+fn base64_maybe_decode(contents: &str, base64: bool) -> Result<Cow<[u8]>> {
+    if base64 {
+        Ok(Cow::from(
+            base64::engine::general_purpose::STANDARD
+                .decode(contents.replace(['\r', '\n'], ""))
+                .context("decoding base64")?,
+        ))
+    } else {
+        Ok(Cow::from(contents.as_bytes()))
     }
 }
 
