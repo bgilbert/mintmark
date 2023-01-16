@@ -18,17 +18,16 @@ mod codeblock;
 mod render;
 mod strike;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use clap::Parser as ClapParser;
 use fs2::FileExt;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
-use std::rc::Rc;
 
-use codeblock::{write_bitmap, write_code128, write_image, write_qrcode};
-use render::{Format, FormatFlags, Justification, Renderer};
+use codeblock::{write_bitmap, write_code128, write_image, write_qrcode, FormatInfo};
+use render::{FormatFlags, Justification, Renderer};
 
 /// Print Markdown to an Epson TM-U220B receipt printer
 #[derive(Debug, ClapParser)]
@@ -312,41 +311,6 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug, Eq, PartialEq)]
-struct FormatInfo {
-    language: String,
-    options: Vec<String>,
-}
-
-impl FormatInfo {
-    fn parse(info: &str) -> Self {
-        let mut it = info.split_whitespace();
-        Self {
-            language: it.next().unwrap_or("").into(),
-            options: it.map(|s| s.to_string()).collect(),
-        }
-    }
-
-    fn text_format(&self, mut format: Rc<Format>) -> Result<Rc<Format>> {
-        if self.language != "text" {
-            bail!("language is not 'text'");
-        }
-        for option in &self.options {
-            format = match option.as_ref() {
-                "black" => format.with_red(false),
-                "bold" => format.with_flags(FormatFlags::EMPHASIZED),
-                "doubleheight" => format.with_flags(FormatFlags::DOUBLE_HEIGHT),
-                "doublewidth" => format.with_flags(FormatFlags::DOUBLE_WIDTH),
-                "strikethrough" => format.with_strikethrough(true),
-                "underline" => format.with_flags(FormatFlags::UNDERLINE),
-                "wide" => format.without_flags(FormatFlags::NARROW),
-                _ => bail!("unknown option '{}'", option),
-            }
-        }
-        Ok(format)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -355,69 +319,5 @@ mod tests {
     fn clap() {
         use clap::CommandFactory;
         Args::command().debug_assert()
-    }
-
-    #[test]
-    fn format_info_parse() {
-        let tests = [
-            (
-                "",
-                FormatInfo {
-                    language: "".into(),
-                    options: vec![],
-                },
-            ),
-            (
-                "foo",
-                FormatInfo {
-                    language: "foo".into(),
-                    options: vec![],
-                },
-            ),
-            (
-                "  text	",
-                FormatInfo {
-                    language: "text".into(),
-                    options: vec![],
-                },
-            ),
-            (
-                " text  black  bold ",
-                FormatInfo {
-                    language: "text".into(),
-                    options: vec!["black".into(), "bold".into()],
-                },
-            ),
-        ];
-        for (info, expected) in tests {
-            assert_eq!(FormatInfo::parse(info), expected);
-        }
-    }
-
-    #[test]
-    fn format_info_text_format() {
-        let base = Format::new().with_red(true);
-
-        let error = ["text bold blah", "foo bold"];
-        for info in error {
-            FormatInfo::parse(info)
-                .text_format(base.clone())
-                .unwrap_err();
-        }
-
-        let success = [
-            ("text", base.clone()),
-            ("text black", base.with_red(false)),
-            (
-                "text black bold",
-                base.with_red(false).with_flags(FormatFlags::EMPHASIZED),
-            ),
-        ];
-        for (info, expected) in success {
-            assert_eq!(
-                FormatInfo::parse(info).text_format(base.clone()).unwrap(),
-                expected
-            );
-        }
     }
 }

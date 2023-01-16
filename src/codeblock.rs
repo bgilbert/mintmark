@@ -20,10 +20,45 @@ use base64::Engine;
 use qrcode::{EcLevel, QrCode};
 use std::borrow::Cow;
 use std::io::{Read, Write};
+use std::rc::Rc;
 
-use crate::render::Renderer;
+use crate::render::{Format, FormatFlags, Renderer};
 use crate::strike::{Strike, StrikeColors, StrikeImage};
-use crate::FormatInfo;
+
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct FormatInfo {
+    pub(crate) language: String,
+    pub(crate) options: Vec<String>,
+}
+
+impl FormatInfo {
+    pub(crate) fn parse(info: &str) -> Self {
+        let mut it = info.split_whitespace();
+        Self {
+            language: it.next().unwrap_or("").into(),
+            options: it.map(|s| s.to_string()).collect(),
+        }
+    }
+
+    pub(crate) fn text_format(&self, mut format: Rc<Format>) -> Result<Rc<Format>> {
+        if self.language != "text" {
+            bail!("language is not 'text'");
+        }
+        for option in &self.options {
+            format = match option.as_ref() {
+                "black" => format.with_red(false),
+                "bold" => format.with_flags(FormatFlags::EMPHASIZED),
+                "doubleheight" => format.with_flags(FormatFlags::DOUBLE_HEIGHT),
+                "doublewidth" => format.with_flags(FormatFlags::DOUBLE_WIDTH),
+                "strikethrough" => format.with_strikethrough(true),
+                "underline" => format.with_flags(FormatFlags::UNDERLINE),
+                "wide" => format.without_flags(FormatFlags::NARROW),
+                _ => bail!("unknown option '{}'", option),
+            }
+        }
+        Ok(format)
+    }
+}
 
 pub(crate) fn write_bitmap(
     renderer: &mut Renderer<impl Read + Write>,
@@ -135,4 +170,73 @@ pub(crate) fn write_code128(
         }
     }
     renderer.write_image(&image)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_info_parse() {
+        let tests = [
+            (
+                "",
+                FormatInfo {
+                    language: "".into(),
+                    options: vec![],
+                },
+            ),
+            (
+                "foo",
+                FormatInfo {
+                    language: "foo".into(),
+                    options: vec![],
+                },
+            ),
+            (
+                "  text	",
+                FormatInfo {
+                    language: "text".into(),
+                    options: vec![],
+                },
+            ),
+            (
+                " text  black  bold ",
+                FormatInfo {
+                    language: "text".into(),
+                    options: vec!["black".into(), "bold".into()],
+                },
+            ),
+        ];
+        for (info, expected) in tests {
+            assert_eq!(FormatInfo::parse(info), expected);
+        }
+    }
+
+    #[test]
+    fn format_info_text_format() {
+        let base = Format::new().with_red(true);
+
+        let error = ["text bold blah", "foo bold"];
+        for info in error {
+            FormatInfo::parse(info)
+                .text_format(base.clone())
+                .unwrap_err();
+        }
+
+        let success = [
+            ("text", base.clone()),
+            ("text black", base.with_red(false)),
+            (
+                "text black bold",
+                base.with_red(false).with_flags(FormatFlags::EMPHASIZED),
+            ),
+        ];
+        for (info, expected) in success {
+            assert_eq!(
+                FormatInfo::parse(info).text_format(base.clone()).unwrap(),
+                expected
+            );
+        }
+    }
 }
