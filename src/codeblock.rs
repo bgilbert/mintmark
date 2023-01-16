@@ -26,150 +26,230 @@ use crate::render::{Format, FormatFlags, Renderer};
 use crate::strike::{Strike, StrikeColors, StrikeImage};
 
 #[derive(Debug, Eq, PartialEq)]
-pub(crate) struct FormatInfo {
-    pub(crate) language: String,
-    pub(crate) options: Vec<String>,
+pub(crate) enum CodeBlockConfig {
+    Bitmap(BitmapBlock),
+    Code128(Code128Block),
+    Image(ImageBlock),
+    QrCode(QrCodeBlock),
+    Text(TextBlock),
 }
 
-impl FormatInfo {
-    pub(crate) fn parse(info: &str) -> Self {
+impl CodeBlockConfig {
+    pub(crate) fn from_info(info: &str) -> Result<Self> {
         let mut it = info.split_whitespace();
-        Self {
-            language: it.next().unwrap_or("").into(),
-            options: it.map(|s| s.to_string()).collect(),
-        }
+        let language = it.next().unwrap_or("");
+        let options = it.collect::<Vec<&str>>();
+        use CodeBlockConfig::*;
+        Ok(match language {
+            "bitmap" => Bitmap(BitmapBlock::from_options(&options)?),
+            "code128" => Code128(Code128Block::from_options(&options)?),
+            "image" => Image(ImageBlock::from_options(&options)?),
+            "qrcode" => QrCode(QrCodeBlock::from_options(&options)?),
+            "text" => Text(TextBlock::from_options(&options)?),
+            _ => Text(TextBlock::default()),
+        })
     }
 
-    pub(crate) fn text_format(&self, mut format: Rc<Format>) -> Result<Rc<Format>> {
-        if self.language != "text" {
-            bail!("language is not 'text'");
+    pub(crate) fn render(
+        &self,
+        renderer: &mut Renderer<impl Read + Write>,
+        contents: &str,
+    ) -> Result<()> {
+        use CodeBlockConfig::*;
+        match self {
+            Bitmap(block) => block.render(renderer, contents),
+            Code128(block) => block.render(renderer, contents),
+            Image(block) => block.render(renderer, contents),
+            QrCode(block) => block.render(renderer, contents),
+            Text(block) => block.render(renderer, contents),
         }
-        for option in &self.options {
-            format = match option.as_ref() {
-                "black" => format.with_red(false),
-                "bold" => format.with_flags(FormatFlags::EMPHASIZED),
-                "doubleheight" => format.with_flags(FormatFlags::DOUBLE_HEIGHT),
-                "doublewidth" => format.with_flags(FormatFlags::DOUBLE_WIDTH),
-                "strikethrough" => format.with_strikethrough(true),
-                "underline" => format.with_flags(FormatFlags::UNDERLINE),
-                "wide" => format.without_flags(FormatFlags::NARROW),
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct BitmapBlock {}
+
+impl BitmapBlock {
+    fn from_options(options: &[&str]) -> Result<Self> {
+        if !options.is_empty() {
+            bail!("no options supported for bitmaps");
+        }
+        Ok(Self {})
+    }
+
+    fn render(&self, renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
+        let contents = contents.trim_end_matches('\n');
+        let width = contents.split('\n').fold(0, |acc, l| acc.max(l.len()));
+        let height = contents.split('\n').count();
+        let mut image = StrikeImage::from_pixel(
+            width.try_into().context("invalid bitmap width")?,
+            height.try_into().context("invalid bitmap height")?,
+            Strike([0, 0]),
+        );
+        for (y, row) in contents.split('\n').enumerate() {
+            for (x, value) in row.chars().enumerate() {
+                *image.get_pixel_mut(
+                    x.try_into().context("invalid X coordinate")?,
+                    y.try_into().context("invalid Y coordinate")?,
+                ) = if value != ' ' {
+                    Strike([1, 0])
+                } else {
+                    Strike([0, 0])
+                };
+            }
+        }
+        renderer.write_image(&image)
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct Code128Block {}
+
+impl Code128Block {
+    fn from_options(options: &[&str]) -> Result<Self> {
+        if !options.is_empty() {
+            bail!("no options supported for Code128");
+        }
+        Ok(Self {})
+    }
+
+    fn render(&self, renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
+        // Build code, character set B
+        let data = Code128::new(format!("\u{0181}{}", contents.trim()))
+            .context("creating barcode")?
+            .encode();
+        // The barcoders image feature pulls in all default features of `image`,
+        // which are large.  Handle the conversion ourselves.
+        let mut image =
+            StrikeImage::new(data.len().try_into().context("barcode size overflow")?, 24);
+        for (x, value) in data.iter().enumerate() {
+            for y in 0..image.height() {
+                *image.get_pixel_mut(x.try_into().context("invalid X coordinate")?, y) =
+                    if *value > 0 {
+                        Strike([1, 0])
+                    } else {
+                        Strike([0, 0])
+                    };
+            }
+        }
+        renderer.write_image(&image)
+    }
+}
+
+#[derive(Debug, Default, Eq, PartialEq)]
+pub(crate) struct ImageBlock {
+    base64: bool,
+    bicolor: bool,
+}
+
+impl ImageBlock {
+    fn from_options(options: &[&str]) -> Result<Self> {
+        let mut block = ImageBlock::default();
+        for option in options {
+            match *option {
+                "base64" => block.base64 = true,
+                "bicolor" => block.bicolor = true,
                 _ => bail!("unknown option '{}'", option),
             }
         }
-        Ok(format)
-    }
-}
-
-pub(crate) fn write_bitmap(
-    renderer: &mut Renderer<impl Read + Write>,
-    contents: &str,
-) -> Result<()> {
-    let width = contents.split('\n').fold(0, |acc, l| acc.max(l.len()));
-    let height = contents.split('\n').count();
-    let mut image = StrikeImage::from_pixel(
-        width.try_into().context("invalid bitmap width")?,
-        height.try_into().context("invalid bitmap height")?,
-        Strike([0, 0]),
-    );
-    for (y, row) in contents.split('\n').enumerate() {
-        for (x, value) in row.chars().enumerate() {
-            *image.get_pixel_mut(
-                x.try_into().context("invalid X coordinate")?,
-                y.try_into().context("invalid Y coordinate")?,
-            ) = if value != ' ' {
-                Strike([1, 0])
-            } else {
-                Strike([0, 0])
-            };
-        }
-    }
-    renderer.write_image(&image)
-}
-
-pub(crate) fn write_image(
-    renderer: &mut Renderer<impl Read + Write>,
-    info: &FormatInfo,
-    contents: &str,
-) -> Result<()> {
-    assert!(info.language == "image");
-    let mut base64 = false;
-    let mut bicolor = false;
-    for option in &info.options {
-        match option.as_ref() {
-            "base64" => base64 = true,
-            "bicolor" => bicolor = true,
-            _ => bail!("unknown option '{}'", option),
-        }
+        Ok(block)
     }
 
-    let data = if base64 {
-        Cow::from(
-            base64::engine::general_purpose::STANDARD
-                .decode(contents.replace(['\r', '\n'], ""))
-                .context("decoding base64")?,
-        )
-    } else {
-        Cow::from(contents.as_bytes())
-    };
-    let image = image::load_from_memory(&data)?.to_rgb8();
-    renderer.write_image(&StrikeColors::new(bicolor).map_image(&image))
-}
-
-pub(crate) fn write_qrcode(
-    renderer: &mut Renderer<impl Read + Write>,
-    contents: &str,
-) -> Result<()> {
-    // Build code
-    let code = QrCode::with_error_correction_level(contents.as_bytes(), EcLevel::L)
-        .context("creating QR code")?;
-    // qrcode is supposed to be able to generate an Image directly,
-    // but that doesn't work.  Take the long way around.
-    // https://github.com/kennytm/qrcode-rust/issues/19
-    let image_str_with_newlines = code
-        .render()
-        .module_dimensions(2, 2)
-        .dark_color('#')
-        .light_color(' ')
-        .build();
-    let image_str = image_str_with_newlines.replace('\n', "");
-    let height = image_str_with_newlines.len() - image_str.len() + 1;
-    let width = image_str.len() / height;
-    let mut image = StrikeImage::new(
-        width.try_into().context("invalid QR code width")?,
-        height.try_into().context("invalid QR code height")?,
-    );
-    for (item, pixel) in image_str.chars().zip(image.pixels_mut()) {
-        *pixel = if item == '#' {
-            Strike([1, 0])
+    fn render(&self, renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
+        let data = if self.base64 {
+            Cow::from(
+                base64::engine::general_purpose::STANDARD
+                    .decode(contents.replace(['\r', '\n'], ""))
+                    .context("decoding base64")?,
+            )
         } else {
-            Strike([0, 0])
+            Cow::from(contents.as_bytes())
         };
+        let image = image::load_from_memory(&data)?.to_rgb8();
+        renderer.write_image(&StrikeColors::new(self.bicolor).map_image(&image))
     }
-
-    renderer.write_image(&image)
 }
 
-pub(crate) fn write_code128(
-    renderer: &mut Renderer<impl Read + Write>,
-    contents: &str,
-) -> Result<()> {
-    // Build code, character set B
-    let data = Code128::new(format!("\u{0181}{}", contents))
-        .context("creating barcode")?
-        .encode();
-    // The barcoders image feature pulls in all default features of `image`,
-    // which are large.  Handle the conversion ourselves.
-    let mut image = StrikeImage::new(data.len().try_into().context("barcode size overflow")?, 24);
-    for (x, value) in data.iter().enumerate() {
-        for y in 0..image.height() {
-            *image.get_pixel_mut(x.try_into().context("invalid X coordinate")?, y) = if *value > 0 {
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct QrCodeBlock {}
+
+impl QrCodeBlock {
+    fn from_options(options: &[&str]) -> Result<Self> {
+        if !options.is_empty() {
+            bail!("no options supported for QR codes");
+        }
+        Ok(Self {})
+    }
+
+    fn render(&self, renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
+        // Build code
+        let code = QrCode::with_error_correction_level(contents.trim().as_bytes(), EcLevel::L)
+            .context("creating QR code")?;
+        // qrcode is supposed to be able to generate an Image directly,
+        // but that doesn't work.  Take the long way around.
+        // https://github.com/kennytm/qrcode-rust/issues/19
+        let image_str_with_newlines = code
+            .render()
+            .module_dimensions(2, 2)
+            .dark_color('#')
+            .light_color(' ')
+            .build();
+        let image_str = image_str_with_newlines.replace('\n', "");
+        let height = image_str_with_newlines.len() - image_str.len() + 1;
+        let width = image_str.len() / height;
+        let mut image = StrikeImage::new(
+            width.try_into().context("invalid QR code width")?,
+            height.try_into().context("invalid QR code height")?,
+        );
+        for (item, pixel) in image_str.chars().zip(image.pixels_mut()) {
+            *pixel = if item == '#' {
                 Strike([1, 0])
             } else {
                 Strike([0, 0])
             };
         }
+
+        renderer.write_image(&image)
     }
-    renderer.write_image(&image)
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct TextBlock {
+    format: Rc<Format>,
+}
+
+impl Default for TextBlock {
+    fn default() -> Self {
+        Self {
+            format: Format::new().with_red(true),
+        }
+    }
+}
+
+impl TextBlock {
+    fn from_options(options: &[&str]) -> Result<Self> {
+        let mut block = Self::default();
+        for option in options {
+            block.format = match *option {
+                "black" => block.format.with_red(false),
+                "bold" => block.format.with_flags(FormatFlags::EMPHASIZED),
+                "doubleheight" => block.format.with_flags(FormatFlags::DOUBLE_HEIGHT),
+                "doublewidth" => block.format.with_flags(FormatFlags::DOUBLE_WIDTH),
+                "strikethrough" => block.format.with_strikethrough(true),
+                "underline" => block.format.with_flags(FormatFlags::UNDERLINE),
+                "wide" => block.format.without_flags(FormatFlags::NARROW),
+                _ => bail!("unknown option '{}'", option),
+            }
+        }
+        Ok(block)
+    }
+
+    fn render(&self, renderer: &mut Renderer<impl Read + Write>, contents: &str) -> Result<()> {
+        renderer.set_format(self.format.clone());
+        let result = renderer.write(contents);
+        renderer.restore_format();
+        result
+    }
 }
 
 #[cfg(test)]
@@ -177,66 +257,40 @@ mod tests {
     use super::*;
 
     #[test]
-    fn format_info_parse() {
+    fn code_block_parse_success() {
         let tests = [
+            ("", CodeBlockConfig::Text(TextBlock::default())),
+            ("foo", CodeBlockConfig::Text(TextBlock::default())),
+            ("  text	", CodeBlockConfig::Text(TextBlock::default())),
             (
-                "",
-                FormatInfo {
-                    language: "".into(),
-                    options: vec![],
-                },
-            ),
-            (
-                "foo",
-                FormatInfo {
-                    language: "foo".into(),
-                    options: vec![],
-                },
-            ),
-            (
-                "  text	",
-                FormatInfo {
-                    language: "text".into(),
-                    options: vec![],
-                },
+                "text black",
+                CodeBlockConfig::Text(TextBlock {
+                    format: Format::new(),
+                }),
             ),
             (
                 " text  black  bold ",
-                FormatInfo {
-                    language: "text".into(),
-                    options: vec!["black".into(), "bold".into()],
-                },
+                CodeBlockConfig::Text(TextBlock {
+                    format: Format::new().with_flags(FormatFlags::EMPHASIZED),
+                }),
             ),
         ];
         for (info, expected) in tests {
-            assert_eq!(FormatInfo::parse(info), expected);
+            assert_eq!(CodeBlockConfig::from_info(info).unwrap(), expected);
         }
     }
 
     #[test]
-    fn format_info_text_format() {
-        let base = Format::new().with_red(true);
-
-        let error = ["text bold blah", "foo bold"];
-        for info in error {
-            FormatInfo::parse(info)
-                .text_format(base.clone())
-                .unwrap_err();
-        }
-
-        let success = [
-            ("text", base.clone()),
-            ("text black", base.with_red(false)),
-            (
-                "text black bold",
-                base.with_red(false).with_flags(FormatFlags::EMPHASIZED),
-            ),
+    fn code_block_parse_error() {
+        let tests = [
+            "text bold blah",
+            "image foo",
+            "bitmap foo",
+            "code128 foo",
+            "qrcode foo",
         ];
-        for (info, expected) in success {
-            assert_eq!(
-                FormatInfo::parse(info).text_format(base.clone()).unwrap(),
-                expected
-            );
+        for info in tests {
+            CodeBlockConfig::from_info(info).unwrap_err();
         }
     }
 }

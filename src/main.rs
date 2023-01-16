@@ -26,7 +26,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 
-use codeblock::{write_bitmap, write_code128, write_image, write_qrcode, FormatInfo};
+use codeblock::CodeBlockConfig;
 use render::{FormatFlags, Justification, Renderer};
 
 /// Print Markdown to an Epson TM-U220B receipt printer
@@ -89,7 +89,7 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
     let parser = Parser::new_ext(input, options);
 
     let mut renderer = Renderer::new(output);
-    let mut code_formats: Vec<FormatInfo> = Vec::new();
+    let mut code_block: Option<CodeBlockConfig> = None;
     let mut lists: Vec<Option<u64>> = Vec::new();
     for (event, _) in parser.into_offset_iter() {
         match event {
@@ -163,21 +163,8 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
                             CodeBlockKind::Indented => "".into(),
                             CodeBlockKind::Fenced(s) => s,
                         };
-                        let info = FormatInfo::parse(&info);
-                        match info.language.as_ref() {
-                            "bitmap" => {}
-                            "image" => {}
-                            "qrcode" => {}
-                            "code128" => {}
-                            _ => {
-                                let mut format = renderer.format().with_red(true);
-                                if info.language == "text" {
-                                    format = info.text_format(format)?;
-                                }
-                                renderer.set_format(format);
-                            }
-                        }
-                        code_formats.push(info);
+                        assert!(code_block.is_none());
+                        code_block = Some(CodeBlockConfig::from_info(&info)?);
                     }
                     Tag::List(first_item_number) => {
                         lists.push(first_item_number);
@@ -231,15 +218,10 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
                 Tag::BlockQuote => {
                     renderer.restore_format();
                 }
-                Tag::CodeBlock(_) => match code_formats.pop().unwrap().language.as_ref() {
-                    "bitmap" => {}
-                    "image" => {}
-                    "qrcode" => {}
-                    "code128" => {}
-                    _ => {
-                        renderer.restore_format();
-                    }
-                },
+                Tag::CodeBlock(_) => {
+                    assert!(code_block.is_some());
+                    code_block = None;
+                }
                 Tag::List(_first_item_number) => {
                     lists.pop();
                     renderer.write("\n")?;
@@ -266,23 +248,10 @@ fn render(input: &str, output: &mut (impl Read + Write)) -> Result<()> {
                 Tag::Image(_, _, _) => {}
             },
             Event::Text(contents) => {
-                let info = code_formats.last();
-                match info.map(|i| i.language.as_ref()).unwrap_or("") {
-                    "bitmap" => {
-                        write_bitmap(&mut renderer, contents.trim_end_matches('\n'))?;
-                    }
-                    "image" => {
-                        write_image(&mut renderer, info.unwrap(), &contents)?;
-                    }
-                    "qrcode" => {
-                        write_qrcode(&mut renderer, contents.trim())?;
-                    }
-                    "code128" => {
-                        write_code128(&mut renderer, contents.trim())?;
-                    }
-                    _ => {
-                        renderer.write(&contents)?;
-                    }
+                if let Some(block) = code_block.as_ref() {
+                    block.render(&mut renderer, &contents)?;
+                } else {
+                    renderer.write(&contents)?;
                 }
             }
             Event::Code(contents) => {
