@@ -68,6 +68,7 @@ fn main() -> Result<()> {
             let file = OpenOptions::new()
                 .create(true)
                 .write(true)
+                .truncate(false)
                 .open(path)
                 .context("opening lockfile")?;
             file.lock_exclusive().context("locking lockfile")?;
