@@ -281,7 +281,7 @@ impl TextBlock {
     }
 }
 
-fn base64_maybe_decode(contents: &str, base64: bool) -> Result<Cow<[u8]>> {
+fn base64_maybe_decode(contents: &str, base64: bool) -> Result<Cow<'_, [u8]>> {
     if base64 {
         Ok(Cow::from(
             base64::engine::general_purpose::STANDARD
