@@ -23,7 +23,7 @@ encoding = "0.2.33"
 fs2 = "0.4.3"
 image = { version = "0.24.7", default-features = false, features = ["pnm", "webp"] }
 pulldown-cmark = "0.9.3"
-qrcode = { version = "0.12", default-features = false }
+qrcode = { version = "0.14", default-features = false }
 
 [build-dependencies]
 anyhow = "1.0"
