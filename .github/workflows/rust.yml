@@ -30,7 +30,7 @@ jobs:
     continue-on-error: ${{ matrix.rust == 'nightly' }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
       - name: Get Rust version
         run: |
           if [ "${{ matrix.rust }}" = msrv ]; then
