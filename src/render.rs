@@ -235,7 +235,7 @@ impl<F: Read + Write> Renderer<F> {
         );
 
         // Write image
-        for yblock in 0..(image.height() + 7) / 8 {
+        for yblock in 0..image.height().div_ceil(8) {
             let xrange = 0..image.width();
             let yrange = yblock * 8..(yblock + 1) * 8;
 
