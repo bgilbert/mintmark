@@ -57,6 +57,7 @@ pub struct Format {
 }
 
 bitflags! {
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     pub struct FormatFlags: u8 {
         const NARROW = 0x01;
         const EMPHASIZED = 0x08;
@@ -114,7 +115,7 @@ impl<F: Read + Write> Renderer<F> {
 
     fn set_printer_format(&mut self, format: &Format) {
         self.spool(b"\x1b!");
-        self.spool(&[format.flags.bits]);
+        self.spool(&[format.flags.bits()]);
         self.spool(b"\x1b3");
         self.spool(&[format.line_spacing]);
         self.spool(b"\x1br");
