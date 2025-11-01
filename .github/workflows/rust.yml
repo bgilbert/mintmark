@@ -23,7 +23,7 @@ jobs:
           - msrv
         pinned: [false]
         include:
-          - rust: 1.70.0
+          - rust: 1.90.0
             pinned: true
     name: Tests (${{ matrix.rust }})
     runs-on: ubuntu-latest
