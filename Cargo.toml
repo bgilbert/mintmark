@@ -17,7 +17,7 @@ exclude = [
 anyhow = "1.0"
 barcoders = { version = "2", default-features = false, features = ["std"] }
 base64 = "0.22.1"
-bitflags = "2.10"
+bitflags = "2.11"
 clap = { version = "4", default-features = false, features = ["std", "help", "usage", "error-context", "derive"] }
 encoding = "0.2.33"
 fs2 = "0.4.3"
